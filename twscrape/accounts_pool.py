@@ -85,13 +85,31 @@ class AccountsPool:
     ):
         qs = "SELECT * FROM accounts WHERE username = :username"
         rs = await fetchone(self._db_file, qs, {"username": username})
-        if rs:
-            logger.warning(f"Account {username} already exists")
-            return
-
         cookies_source = "argument" if cookies else "X_COOKIES env"
         cookies = cookies or os.getenv("X_COOKIES")
         parsed_cookies = parse_cookies(cookies) if cookies else {}
+
+        if rs:
+            account = Account.from_rs(rs)
+            updated = False
+
+            if parsed_cookies and parsed_cookies != account.cookies:
+                account.cookies = parsed_cookies
+                updated = True
+                if "ct0" in account.cookies:
+                    account.active = True
+
+            if user_agent and user_agent != account.user_agent:
+                account.user_agent = user_agent
+                updated = True
+
+            if updated:
+                await self.save(account)
+                logger.info(f"Account {username} updated successfully (active={account.active})")
+            else:
+                logger.warning(f"Account {username} already exists")
+            return
+
         account = Account(
             username=username,
             password=password,
