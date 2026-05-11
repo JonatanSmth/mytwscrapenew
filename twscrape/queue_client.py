@@ -10,7 +10,7 @@ from httpx import AsyncClient, Response
 from .accounts_pool import Account, AccountsPool
 from .logger import logger
 from .utils import utc
-from .xclid import XClIdGen
+from .xclid import XClIdGen, XClIdGenError
 
 ReqParams = dict[str, str | int] | None
 TMP_TS = utc.now().isoformat().split(".")[0].replace("T", "_").replace(":", "-")[0:16]
@@ -268,6 +268,9 @@ class QueueClient:
             except AbortReqError:
                 # abort all queries
                 return
+            except XClIdGenError as e:
+                logger.error(f"XClId generation failed: {e}")
+                raise AbortReqError() from e
             except HandledError:
                 # retry with new account
                 continue

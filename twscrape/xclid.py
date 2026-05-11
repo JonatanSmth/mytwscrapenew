@@ -11,6 +11,17 @@ import httpx
 from fake_useragent import UserAgent
 
 
+class XClIdGenError(Exception):
+    """Raised when x.com client transaction id generation fails."""
+
+
+def _split_or_raise(text: str, sep: str, message: str) -> str:
+    parts = text.split(sep)
+    if len(parts) < 2:
+        raise XClIdGenError(message)
+    return parts[1]
+
+
 def _make_client() -> httpx.AsyncClient:
     headers = {"user-agent": UserAgent().chrome}
     return httpx.AsyncClient(headers=headers, follow_redirects=True)
@@ -24,14 +35,22 @@ async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
     if ">document.location =" not in rep.text:
         return rep.text
 
-    url = rep.text.split('document.location = "')[1].split('"')[0]
+    redirect_text = _split_or_raise(rep.text, 'document.location = "', "Failed to parse x.com redirect location")
+    url = redirect_text.split('"')[0]
     rep = await clt.get(url)
     rep.raise_for_status()
     if 'action="https://x.com/x/migrate" method="post"' not in rep.text:
         return rep.text
 
     data = {}
-    for x in rep.text.split("<input")[1:]:
+    inputs = rep.text.split("<input")[1:]
+    if not inputs:
+        raise XClIdGenError("Failed to parse x.com migrate form inputs")
+
+    for x in inputs:
+        if 'name="' not in x or 'value="' not in x:
+            continue
+
         name = x.split('name="')[1].split('"')[0]
         value = x.split('value="')[1].split('"')[0]
         data[name] = value
@@ -47,7 +66,11 @@ def script_url(k: str, v: str):
 
 
 def get_scripts_list(text: str):
-    scripts = text.split('e=>e+"."+')[1].split('[e]+"a.js"')[0]
+    marker_start = 'e=>e+".+"'
+    marker_end = '[e]+"a.js"'
+    if marker_start not in text or marker_end not in text:
+        raise XClIdGenError("Couldn't parse XClientTxId script list markers")
+    scripts = text.split(marker_start)[1].split(marker_end)[0]
 
     try:
         data = json.loads(scripts)
