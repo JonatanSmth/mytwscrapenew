@@ -1,0 +1,1117 @@
+﻿.....FEFEFEFEFEFEFE                                                      [100%]
+=================================== ERRORS ====================================
+______________ ERROR at teardown of test_lock_account_when_used _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027785634D70>
+request = <SubRequest 'httpx_mock' for <Coroutine test_lock_account_when_used>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x0000027785589FD0>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+>       assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+E       AssertionError: The following responses are mocked but not requested:
+E         - Match any request on https://example.com/api
+E         
+E         If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested
+E       assert not [<pytest_httpx._request_matcher._RequestMatcher object at 0x000002778558A270>]
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:325: AssertionError
+___________ ERROR at teardown of test_do_not_switch_account_on_200 ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000027786464830>
+request = <SubRequest 'httpx_mock' for <Coroutine test_do_not_switch_account_on_200>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x000002778560FD90>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+>       assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+E       AssertionError: The following responses are mocked but not requested:
+E         - Match any request on https://example.com/api
+E         
+E         If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested
+E       assert not [<pytest_httpx._request_matcher._RequestMatcher object at 0x00000277856F8A50>]
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:325: AssertionError
+_____________ ERROR at teardown of test_switch_acc_on_http_error ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277854A3D10>
+request = <SubRequest 'httpx_mock' for <Coroutine test_switch_acc_on_http_error>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856F96D0>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+>       assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+E       AssertionError: The following responses are mocked but not requested:
+E         - Match any request on https://example.com/api
+E         - Match any request on https://example.com/api
+E         
+E         If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested
+E       assert not [<pytest_httpx._request_matcher._RequestMatcher object at 0x00000277856F9590>, <pytest_httpx._request_matcher._RequestMatcher object at 0x000002778567A650>]
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:325: AssertionError
+_______ ERROR at teardown of test_retry_with_same_acc_on_network_error ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277863FDDB0>
+request = <SubRequest 'httpx_mock' for <Coroutine test_retry_with_same_acc_on_network_error>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x000002778567B100>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+>       assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+E       AssertionError: The following responses are mocked but not requested:
+E         - Match any request on https://example.com/api
+E         
+E         If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested
+E       assert not [<pytest_httpx._request_matcher._RequestMatcher object at 0x00000277857084D0>]
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:325: AssertionError
+_________ ERROR at teardown of test_xclid_error_does_not_lock_account _________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277863D3650>
+request = <SubRequest 'httpx_mock' for <Coroutine test_xclid_error_does_not_lock_account>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C8640>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+        assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+    
+        if self._options.assert_all_requests_were_expected:
+            requests_description = "\n".join(
+                [
+                    f"- {request.method} request on {request.url}"
+                    for request in self._requests_not_matched
+                ]
+            )
+>           assert not self._requests_not_matched, (
+                f"The following requests were not expected:\n"
+                f"{requests_description}\n"
+                "\n"
+                "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-not-register-responses-for-every-request"
+            )
+E           AssertionError: The following requests were not expected:
+E             - GET request on https://x.com/home
+E             
+E             If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-not-register-responses-for-every-request
+E           assert not [<Request('GET', 'https://x.com/home')>]
+E            +  where [<Request('GET', 'https://x.com/home')>] = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C8640>._requests_not_matched
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:339: AssertionError
+_______ ERROR at teardown of test_invalid_x_session_invalidates_account _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277856E2F20>
+request = <SubRequest 'httpx_mock' for <Coroutine test_invalid_x_session_invalidates_account>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277857095B0>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+        assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+    
+        if self._options.assert_all_requests_were_expected:
+            requests_description = "\n".join(
+                [
+                    f"- {request.method} request on {request.url}"
+                    for request in self._requests_not_matched
+                ]
+            )
+>           assert not self._requests_not_matched, (
+                f"The following requests were not expected:\n"
+                f"{requests_description}\n"
+                "\n"
+                "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-not-register-responses-for-every-request"
+            )
+E           AssertionError: The following requests were not expected:
+E             - GET request on https://x.com/home
+E             
+E             If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-not-register-responses-for-every-request
+E           assert not [<Request('GET', 'https://x.com/home')>]
+E            +  where [<Request('GET', 'https://x.com/home')>] = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277857095B0>._requests_not_matched
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:339: AssertionError
+________________ ERROR at teardown of test_ctx_closed_on_break ________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277856D01A0>
+request = <SubRequest 'httpx_mock' for <Coroutine test_ctx_closed_on_break>>
+
+    @pytest.fixture
+    def httpx_mock(
+        monkeypatch: MonkeyPatch,
+        request: FixtureRequest,
+    ) -> Generator[HTTPXMock, None, None]:
+        options = {}
+        for marker in request.node.iter_markers("httpx_mock"):
+            options = marker.kwargs | options
+        __tracebackhide__ = methodcaller("errisinstance", TypeError)
+        options = _HTTPXMockOptions(**options)
+    
+        mock = HTTPXMock(options)
+    
+        # Mock synchronous requests
+        real_handle_request = httpx.HTTPTransport.handle_request
+    
+        def mocked_handle_request(
+            transport: httpx.HTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return mock._handle_request(transport, request)
+            return real_handle_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.HTTPTransport,
+            "handle_request",
+            mocked_handle_request,
+        )
+    
+        # Mock asynchronous requests
+        real_handle_async_request = httpx.AsyncHTTPTransport.handle_async_request
+    
+        async def mocked_handle_async_request(
+            transport: httpx.AsyncHTTPTransport, request: httpx.Request
+        ) -> httpx.Response:
+            if options.should_mock(request):
+                return await mock._handle_async_request(transport, request)
+            return await real_handle_async_request(transport, request)
+    
+        monkeypatch.setattr(
+            httpx.AsyncHTTPTransport,
+            "handle_async_request",
+            mocked_handle_async_request,
+        )
+    
+        yield mock
+        try:
+>           mock._assert_options()
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C56A0>
+
+    def _assert_options(self) -> None:
+        callbacks_not_executed = [
+            matcher for matcher, _ in self._callbacks if matcher.should_have_matched()
+        ]
+        matchers_description = "\n".join(
+            [f"- {matcher}" for matcher in callbacks_not_executed]
+        )
+    
+>       assert not callbacks_not_executed, (
+            "The following responses are mocked but not requested:\n"
+            f"{matchers_description}\n"
+            "\n"
+            "If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested"
+        )
+E       AssertionError: The following responses are mocked but not requested:
+E         - Match any request on https://example.com/api
+E         
+E         If this is on purpose, refer to https://github.com/Colin-b/pytest_httpx/blob/master/README.md#allow-to-register-more-responses-than-what-will-be-requested
+E       assert not [<pytest_httpx._request_matcher._RequestMatcher object at 0x00000277856C6360>]
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:325: AssertionError
+================================== FAILURES ===================================
+_________________________ test_lock_account_when_used _________________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x0000027785589FD0>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x000002778558A3C0>, <twscrape.queue_client.QueueClient object at 0x0000027785589E80>)
+
+    async def test_lock_account_when_used(httpx_mock: HTTPXMock, client_fixture):
+        pool, client = client_fixture
+    
+        locked = await get_locked(pool)
+        assert len(locked) == 0
+    
+        # should lock account on getting it
+        await client.__aenter__()
+        locked = await get_locked(pool)
+        assert len(locked) == 1
+        assert "user1" in locked
+    
+        # keep locked on request
+        httpx_mock.add_response(url=URL, json={"foo": "bar"}, status_code=200)
+>       assert (await client.get(URL)).json() == {"foo": "bar"}
+                ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x0000027785589FD0>
+real_transport = <httpx.AsyncHTTPTransport object at 0x000002778560CF50>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home amongst:
+E       - Match any request on https://example.com/api
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+______________________ test_do_not_switch_account_on_200 ______________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x000002778560FD90>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x00000277856F8050>, <twscrape.queue_client.QueueClient object at 0x000002778560FED0>)
+
+    async def test_do_not_switch_account_on_200(httpx_mock: HTTPXMock, client_fixture: CF):
+        pool, client = client_fixture
+    
+        # get account and lock it
+        await client.__aenter__()
+        locked1 = await get_locked(pool)
+        assert len(locked1) == 1
+    
+        # make several requests with status=200
+        for x in range(1):
+            httpx_mock.add_response(url=URL, json={"foo": x}, status_code=200)
+>           rep = await client.get(URL)
+                  ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x000002778560FD90>
+real_transport = <httpx.AsyncHTTPTransport object at 0x000002778560EE90>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home amongst:
+E       - Match any request on https://example.com/api
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+________________________ test_switch_acc_on_http_error ________________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856F96D0>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x00000277856F9950>, <twscrape.queue_client.QueueClient object at 0x00000277856F8E10>)
+
+    async def test_switch_acc_on_http_error(httpx_mock: HTTPXMock, client_fixture: CF):
+        pool, client = client_fixture
+    
+        # locked account on enter
+        await client.__aenter__()
+        locked1 = await get_locked(pool)
+        assert len(locked1) == 1
+    
+        # fail one request, account should be switched
+        httpx_mock.add_response(url=URL, json={"foo": "1"}, status_code=403)
+        httpx_mock.add_response(url=URL, json={"foo": "2"}, status_code=200)
+    
+>       rep = await client.get(URL)
+              ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:83: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856F96D0>
+real_transport = <httpx.AsyncHTTPTransport object at 0x000002778567A190>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home amongst:
+E       - Match any request on https://example.com/api
+E       - Match any request on https://example.com/api
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+__________________ test_retry_with_same_acc_on_network_error __________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x000002778567B100>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x000002778567B230>, <twscrape.queue_client.QueueClient object at 0x000002778567B490>)
+
+    async def test_retry_with_same_acc_on_network_error(httpx_mock: HTTPXMock, client_fixture: CF):
+        pool, client = client_fixture
+    
+        # locked account on enter
+        await client.__aenter__()
+        locked1 = await get_locked(pool)
+        assert len(locked1) == 1
+    
+        # timeout on first request, account should not be switched
+        httpx_mock.add_exception(httpx.ReadTimeout("Unable to read within timeout"))
+        httpx_mock.add_response(url=URL, json={"foo": "2"}, status_code=200)
+    
+>       rep = await client.get(URL)
+              ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:180: in _handle_async_request
+    response = callback(request)
+               ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+request = <Request('GET', 'https://x.com/home')>
+
+    def exception_callback(request: httpx.Request) -> None:
+        if isinstance(exception, httpx.RequestError):
+            exception.request = request
+>       raise exception
+E       httpx.ReadTimeout: Unable to read within timeout
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:147: ReadTimeout
+___________________ test_xclid_error_does_not_lock_account ____________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C8640>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x00000277856C88A0>, <twscrape.queue_client.QueueClient object at 0x00000277856C8B00>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277863D3650>
+
+    async def test_xclid_error_does_not_lock_account(httpx_mock: HTTPXMock, client_fixture: CF, monkeypatch):
+        pool, client = client_fixture
+    
+        await client.__aenter__()
+        locked1 = await get_locked(pool)
+        assert len(locked1) == 1
+    
+        async def fake_get(cls, username, fresh=False):
+            raise XClIdGenError("Failed to generate XClId")
+    
+        monkeypatch.setattr(XClIdGenStore, "get", classmethod(fake_get))
+    
+>       rep = await client.get(URL)
+              ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C8640>
+real_transport = <httpx.AsyncHTTPTransport object at 0x00000277857083B0>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+_________________ test_invalid_x_session_invalidates_account __________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277857095B0>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x00000277857096D0>, <twscrape.queue_client.QueueClient object at 0x0000027785708950>)
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000277856E2F20>
+
+    async def test_invalid_x_session_invalidates_account(httpx_mock: HTTPXMock, client_fixture: CF, monkeypatch):
+        pool, client = client_fixture
+    
+        await client.__aenter__()
+        locked1 = await get_locked(pool)
+        assert len(locked1) == 1
+    
+        async def fake_get(cls, username, fresh=False, clt=None):
+            raise InvalidXSessionError("Login page")
+    
+        monkeypatch.setattr(XClIdGenStore, "get", classmethod(fake_get))
+    
+>       rep = await client.get(URL)
+              ^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_queue_client.py:153: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277857095B0>
+real_transport = <httpx.AsyncHTTPTransport object at 0x00000277856C4380>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+__________________________ test_ctx_closed_on_break ___________________________
+
+httpx_mock = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C56A0>
+client_fixture = (<twscrape.accounts_pool.AccountsPool object at 0x00000277856C57B0>, <twscrape.queue_client.QueueClient object at 0x000002778563F680>)
+
+    async def test_ctx_closed_on_break(httpx_mock: HTTPXMock, client_fixture: CF):
+        pool, client = client_fixture
+    
+        async def get_data_stream():
+            async with client as c:
+                counter = 0
+                while True:
+                    counter += 1
+                    check_retry = counter == 2
+                    before_ctx = c.ctx
+    
+                    if check_retry:
+                        httpx_mock.add_response(url=URL, json={"counter": counter}, status_code=403)
+                        httpx_mock.add_response(url=URL, json={"counter": counter}, status_code=200)
+                    else:
+                        httpx_mock.add_response(url=URL, json={"counter": counter}, status_code=200)
+    
+                    rep = await c.get(URL)
+    
+                    if check_retry:
+                        assert before_ctx != c.ctx
+                    elif before_ctx is not None:
+                        assert before_ctx == c.ctx
+    
+                    assert rep is not None
+                    assert rep.json() == {"counter": counter}
+                    yield rep.json()["counter"]
+    
+                    if counter == 9:
+                        return
+    
+        # need to use async with to break to work
+        async with aclosing(get_data_stream()) as gen:
+>           async for x in gen:
+
+tests\test_queue_client.py:194: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_queue_client.py:178: in get_data_stream
+    rep = await c.get(URL)
+          ^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:265: in get
+    return await self.req("GET", url, params=params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+twscrape\queue_client.py:275: in req
+    await ctx.warmup()
+twscrape\queue_client.py:65: in warmup
+    rep = await self.clt.get("https://x.com/home")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1768: in get
+    return await self.request(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1540: in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1629: in send
+    response = await self._send_handling_auth(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1657: in _send_handling_auth
+    response = await self._send_handling_redirects(
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1694: in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\httpx\_client.py:1730: in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\__init__.py:56: in mocked_handle_async_request
+    return await mock._handle_async_request(transport, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:187: in _handle_async_request
+    self._request_not_matched(real_transport, request)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <pytest_httpx._httpx_mock.HTTPXMock object at 0x00000277856C56A0>
+real_transport = <httpx.AsyncHTTPTransport object at 0x00000277856C59D0>
+request = <Request('GET', 'https://x.com/home')>
+
+    def _request_not_matched(
+        self,
+        real_transport: Union[httpx.AsyncHTTPTransport, httpx.HTTPTransport],
+        request: httpx.Request,
+    ) -> NoReturn:
+        self._requests_not_matched.append(request)
+>       raise httpx.TimeoutException(
+            self._explain_that_no_response_was_found(real_transport, request),
+            request=request,
+        )
+E       httpx.TimeoutException: No response can be found for GET request on https://x.com/home amongst:
+E       - Match any request on https://example.com/api
+
+..\..\miniconda3\Lib\site-packages\pytest_httpx\_httpx_mock.py:195: TimeoutException
+=========================== short test summary info ===========================
+FAILED tests/test_queue_client.py::test_lock_account_when_used - httpx.Timeou...
+FAILED tests/test_queue_client.py::test_do_not_switch_account_on_200 - httpx....
+FAILED tests/test_queue_client.py::test_switch_acc_on_http_error - httpx.Time...
+FAILED tests/test_queue_client.py::test_retry_with_same_acc_on_network_error
+FAILED tests/test_queue_client.py::test_xclid_error_does_not_lock_account - h...
+FAILED tests/test_queue_client.py::test_invalid_x_session_invalidates_account
+FAILED tests/test_queue_client.py::test_ctx_closed_on_break - httpx.TimeoutEx...
+ERROR tests/test_queue_client.py::test_lock_account_when_used - AssertionErro...
+ERROR tests/test_queue_client.py::test_do_not_switch_account_on_200 - Asserti...
+ERROR tests/test_queue_client.py::test_switch_acc_on_http_error - AssertionEr...
+ERROR tests/test_queue_client.py::test_retry_with_same_acc_on_network_error
+ERROR tests/test_queue_client.py::test_xclid_error_does_not_lock_account - As...
+ERROR tests/test_queue_client.py::test_invalid_x_session_invalidates_account
+ERROR tests/test_queue_client.py::test_ctx_closed_on_break - AssertionError: ...
+7 failed, 5 passed, 7 errors in 2.15s

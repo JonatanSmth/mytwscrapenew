@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -88,19 +89,27 @@ class AccountsPool:
             logger.warning(f"Account {username} already exists")
             return
 
+        cookies_source = "argument" if cookies else "X_COOKIES env"
+        cookies = cookies or os.getenv("X_COOKIES")
+        parsed_cookies = parse_cookies(cookies) if cookies else {}
         account = Account(
             username=username,
             password=password,
             email=email,
             email_password=email_password,
-            user_agent=user_agent or UserAgent().safari,
+            user_agent=user_agent or os.getenv("X_USER_AGENT") or UserAgent().safari,
             active=False,
             locks={},
             stats={},
             headers={},
-            cookies=parse_cookies(cookies) if cookies else {},
+            cookies=parsed_cookies,
             proxy=proxy,
             mfa_code=mfa_code,
+        )
+
+        logger.debug(
+            f"Account {username}: loaded cookies from {cookies_source}. "
+            f"count={len(parsed_cookies)} ct0_present={'ct0' in parsed_cookies}"
         )
 
         if "ct0" in account.cookies:
@@ -108,6 +117,27 @@ class AccountsPool:
 
         await self.save(account)
         logger.info(f"Account {username} added successfully (active={account.active})")
+
+    async def add_account_from_env(self):
+        username = os.getenv("X_USERNAME")
+        password = os.getenv("X_PASSWORD")
+        email = os.getenv("X_EMAIL")
+        email_password = os.getenv("X_EMAIL_PASSWORD")
+        user_agent = os.getenv("X_USER_AGENT")
+        proxy = os.getenv("X_PROXY")
+        cookies = os.getenv("X_COOKIES")
+        if not username or not email or not email_password or not cookies:
+            logger.warning("Environment account is incomplete: X_USERNAME, X_EMAIL, X_EMAIL_PASSWORD and X_COOKIES are required")
+            return None
+        return await self.add_account(
+            username=username,
+            password=password or "",
+            email=email,
+            email_password=email_password,
+            user_agent=user_agent,
+            proxy=proxy,
+            cookies=cookies,
+        )
 
     async def delete_accounts(self, usernames: str | list[str]):
         usernames = usernames if isinstance(usernames, list) else [usernames]

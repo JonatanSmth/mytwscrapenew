@@ -6,8 +6,27 @@ from datetime import datetime
 
 from httpx import AsyncClient, AsyncHTTPTransport
 
+from .logger import logger
 from .models import JSONTrait
 from .utils import utc
+
+
+@dataclass
+class XSession:
+    cookies: dict[str, str]
+    headers: dict[str, str]
+    proxy: str | None = None
+    last_validated: int | None = None
+
+    def apply_to_client(self, client: AsyncClient):
+        for name, value in self.cookies.items():
+            client.cookies.set(name, value)
+        client.headers.update(self.headers)
+
+        if "ct0" in client.cookies:
+            client.headers["x-csrf-token"] = client.cookies["ct0"]
+        elif self.cookies:
+            logger.warning("Session cookies provided but missing ct0; session will be invalid until ct0 is present")
 
 TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 
@@ -59,8 +78,14 @@ class Account(JSONTrait):
         client = AsyncClient(proxy=proxy, follow_redirects=True, transport=transport)
 
         # saved from previous usage
-        client.cookies.update(self.cookies)
-        client.headers.update(self.headers)
+        XSession(self.cookies, self.headers, proxy=self.proxy).apply_to_client(client)
+
+        if self.cookies:
+            logger.debug(
+                f"Account {self.username}: client initialized with {len(self.cookies)} cookies; ct0_present={'ct0' in self.cookies}"
+            )
+        else:
+            logger.debug(f"Account {self.username}: client initialized without cookies")
 
         # default settings
         client.headers["user-agent"] = self.user_agent
@@ -68,8 +93,5 @@ class Account(JSONTrait):
         client.headers["authorization"] = TOKEN
         client.headers["x-twitter-active-user"] = "yes"
         client.headers["x-twitter-client-language"] = "en"
-
-        if "ct0" in client.cookies:
-            client.headers["x-csrf-token"] = client.cookies["ct0"]
 
         return client

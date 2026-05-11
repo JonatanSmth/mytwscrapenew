@@ -5,6 +5,7 @@ from pytest_httpx import HTTPXMock
 
 from twscrape.accounts_pool import AccountsPool
 from twscrape.queue_client import QueueClient, XClIdGenError, XClIdGenStore
+from twscrape.xclid import InvalidXSessionError
 
 DB_FILE = "/tmp/twscrape_test_queue_client.db"
 URL = "https://example.com/api"
@@ -124,7 +125,7 @@ async def test_xclid_error_does_not_lock_account(httpx_mock: HTTPXMock, client_f
     locked1 = await get_locked(pool)
     assert len(locked1) == 1
 
-    async def fake_get(cls, username, fresh=False):
+    async def fake_get(cls, username, fresh=False, clt=None):
         raise XClIdGenError("Failed to generate XClId")
 
     monkeypatch.setattr(XClIdGenStore, "get", classmethod(fake_get))
@@ -135,6 +136,28 @@ async def test_xclid_error_does_not_lock_account(httpx_mock: HTTPXMock, client_f
 
     locked2 = await get_locked(pool)
     assert len(locked2) == 0
+
+
+async def test_invalid_x_session_invalidates_account(httpx_mock: HTTPXMock, client_fixture: CF, monkeypatch):
+    pool, client = client_fixture
+
+    await client.__aenter__()
+    locked1 = await get_locked(pool)
+    assert len(locked1) == 1
+
+    async def fake_get(cls, username, fresh=False, clt=None):
+        raise InvalidXSessionError("Login page")
+
+    monkeypatch.setattr(XClIdGenStore, "get", classmethod(fake_get))
+
+    rep = await client.get(URL)
+    assert rep is None
+    assert client.ctx is None
+
+    accounts = await pool.get_all()
+    user1 = await pool.get("user1")
+    assert not user1.active
+    assert any(x.active for x in accounts if x.username != "user1")
 
 
 async def test_ctx_closed_on_break(httpx_mock: HTTPXMock, client_fixture: CF):

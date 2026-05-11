@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import random
 from typing import Any
 from urllib.parse import urlparse
 
@@ -10,7 +11,7 @@ from httpx import AsyncClient, Response
 from .accounts_pool import Account, AccountsPool
 from .logger import logger
 from .utils import utc
-from .xclid import XClIdGen, XClIdGenError
+from .xclid import InvalidXSessionError, XClIdGen, XClIdGenError, detect_invalid_x_page
 
 ReqParams = dict[str, str | int] | None
 TMP_TS = utc.now().isoformat().split(".")[0].replace("T", "_").replace(":", "-")[0:16]
@@ -26,14 +27,14 @@ class XClIdGenStore:
     items: dict[str, XClIdGen] = {}  # username -> XClIdGen
 
     @classmethod
-    async def get(cls, username: str, fresh=False) -> XClIdGen:
+    async def get(cls, username: str, fresh=False, clt: AsyncClient | None = None) -> XClIdGen:
         if username in cls.items and not fresh:
             return cls.items[username]
 
         tries = 0
         while tries < 3:
             try:
-                clid_gen = await XClIdGen.create()
+                clid_gen = await XClIdGen.create(clt=clt)
                 cls.items[username] = clid_gen
                 return clid_gen
             except httpx.HTTPStatusError:
@@ -50,9 +51,27 @@ class Ctx:
         self.req_count = 0
         self.acc = acc
         self.clt = clt
+        self._warmup_done = False
 
     async def aclose(self):
         await self.clt.aclose()
+
+    async def warmup(self):
+        if self._warmup_done:
+            return
+
+        if not self.acc.cookies:
+            return
+
+        if "ct0" not in self.acc.cookies:
+            raise InvalidXSessionError("Missing ct0 cookie")
+
+        rep = await self.clt.get("https://x.com/home")
+        rep.raise_for_status()
+        if reason := detect_invalid_x_page(rep.text):
+            raise InvalidXSessionError(f"Invalid X session: {reason}")
+
+        self._warmup_done = True
 
     async def req(self, method: str, url: str, params: ReqParams = None) -> Response:
         # if code 404 on first try then generate new x-client-transaction-id and retry
@@ -61,7 +80,7 @@ class Ctx:
 
         tries = 0
         while tries < 3:
-            gen = await XClIdGenStore.get(self.acc.username, fresh=tries > 0)
+            gen = await XClIdGenStore.get(self.acc.username, fresh=tries > 0, clt=self.clt)
             hdr = {"x-client-transaction-id": gen.calc(method, path)}
             rep = await self.clt.request(method, url, params=params, headers=hdr)
             if rep.status_code != 404:
@@ -257,6 +276,13 @@ class QueueClient:
             if ctx is None:
                 return None
 
+            await ctx.warmup()
+            delay_min = float(os.getenv("TWS_REQUEST_DELAY_MIN", 5))
+            delay_max = float(os.getenv("TWS_REQUEST_DELAY_MAX", 10))
+            if delay_max >= delay_min and delay_min > 0:
+                delay = random.uniform(delay_min, delay_max)
+                logger.debug(f"Sleeping {delay:.2f}s before request to reduce polling frequency")
+                await asyncio.sleep(delay)
             try:
                 rep = await ctx.req(method, url, params=params)
                 setattr(rep, "__username", ctx.acc.username)
@@ -268,6 +294,10 @@ class QueueClient:
             except AbortReqError:
                 # abort all queries
                 return
+            except InvalidXSessionError as e:
+                logger.error(f"Invalid X session detected: {e}")
+                await self._close_ctx(-1, inactive=True, msg=str(e))
+                return None
             except XClIdGenError as e:
                 logger.error(f"XClId generation failed: {e}")
                 await self._close_ctx()
@@ -294,3 +324,4 @@ class QueueClient:
 
                     logger.warning(" ".join(msg))
                     await self._close_ctx(utc.ts() + 60 * 15)  # 15 minutes
+                    return None

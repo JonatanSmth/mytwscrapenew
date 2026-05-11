@@ -1,7 +1,9 @@
 {
   "[python]": {
     "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": ["source.organizeImports"],
+    "editor.codeActionsOnSave": [
+      "source.organizeImports"
+    ],
     "editor.defaultFormatter": "charliermarsh.ruff"
   },
   "[toml]": {
@@ -10,7 +12,7 @@
   "[markdown]": {
     "editor.wordWrap": "wordWrapColumn",
     "editor.wordWrapColumn": 99
-  },  
+  },
   "files.exclude": {
     ".ruff_cache": true,
     ".pytest_cache": true,
@@ -20,5 +22,7 @@
   },
   "files.associations": {
     "Dockerfile.*": "dockerfile"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda"
 }

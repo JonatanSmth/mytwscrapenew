@@ -50,6 +50,27 @@ async def test_get_all(pool_mock: AccountsPool):
     assert accs[1].username == "user2"
 
 
+async def test_add_account_from_env(pool_mock: AccountsPool, monkeypatch):
+    monkeypatch.setenv("X_USERNAME", "env_user")
+    monkeypatch.setenv("X_PASSWORD", "env_pass")
+    monkeypatch.setenv("X_EMAIL", "env_email")
+    monkeypatch.setenv("X_EMAIL_PASSWORD", "env_email_pass")
+    monkeypatch.setenv("X_USER_AGENT", "env-agent/1.0")
+    monkeypatch.setenv("X_COOKIES", "ct0=abc123; auth_token=token123")
+
+    await pool_mock.add_account_from_env()
+    acc = await pool_mock.get("env_user")
+
+    assert acc.username == "env_user"
+    assert acc.password == "env_pass"
+    assert acc.email == "env_email"
+    assert acc.email_password == "env_email_pass"
+    assert acc.user_agent == "env-agent/1.0"
+    assert acc.cookies["ct0"] == "abc123"
+    assert acc.cookies["auth_token"] == "token123"
+    assert acc.active is True
+
+
 async def test_save(pool_mock: AccountsPool):
     # should save account
     await pool_mock.add_account("user1", "pass1", "email1", "email_pass1")

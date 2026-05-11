@@ -17,6 +17,10 @@ class XClIdGenError(Exception):
     """Raised when x.com client transaction id generation fails."""
 
 
+class InvalidXSessionError(XClIdGenError):
+    """Raised when x.com responds with a login or WAF page instead of a valid session."""
+
+
 def _split_or_raise(text: str, sep: str, message: str) -> str:
     idx = text.find(sep)
     if idx == -1:
@@ -62,7 +66,7 @@ async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
         logger.error(
             f"Invalid X HTML response detected ({reason}). HTML preview: {page_text[:500]!r}"
         )
-        raise XClIdGenError(f"Invalid X HTML response: {reason}")
+        raise InvalidXSessionError(f"Invalid X HTML response: {reason}")
 
     if ">document.location =" not in page_text:
         return page_text
@@ -81,7 +85,7 @@ async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
         logger.error(
             f"Invalid X HTML response detected after redirect ({reason}). HTML preview: {page_text[:500]!r}"
         )
-        raise XClIdGenError(f"Invalid X HTML response after redirect: {reason}")
+        raise InvalidXSessionError(f"Invalid X HTML response after redirect: {reason}")
 
     if 'action="https://x.com/x/migrate" method="post"' not in page_text:
         return page_text
