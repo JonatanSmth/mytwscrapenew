@@ -270,7 +270,8 @@ class QueueClient:
                 return
             except XClIdGenError as e:
                 logger.error(f"XClId generation failed: {e}")
-                raise AbortReqError() from e
+                await self._close_ctx()
+                return None
             except HandledError:
                 # retry with new account
                 continue

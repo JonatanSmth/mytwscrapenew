@@ -10,16 +10,41 @@ import bs4
 import httpx
 from fake_useragent import UserAgent
 
+from .logger import logger
+
 
 class XClIdGenError(Exception):
     """Raised when x.com client transaction id generation fails."""
 
 
 def _split_or_raise(text: str, sep: str, message: str) -> str:
-    parts = text.split(sep)
-    if len(parts) < 2:
+    idx = text.find(sep)
+    if idx == -1:
         raise XClIdGenError(message)
-    return parts[1]
+    start = idx + len(sep)
+    return text[start:]
+
+
+def safe_find_between(text: str, left: str, right: str) -> str | None:
+    start = text.find(left)
+    if start == -1:
+        return None
+    start += len(left)
+    end = text.find(right, start)
+    if end == -1:
+        return None
+    return text[start:end]
+
+
+def detect_invalid_x_page(text: str) -> str | None:
+    lower = text.lower()
+    if "captcha" in lower or "verify you're human" in lower or "complete the security check" in lower:
+        return "WAF / bot challenge page"
+    if "access denied" in lower or "blocked" in lower or "suspicious activity" in lower:
+        return "WAF / access denied page"
+    if re.search(r"<title[^>]*>.*login.*</title>", text, re.I) or "log in to x" in lower or "sign in" in lower:
+        return "Login page"
+    return None
 
 
 def _make_client() -> httpx.AsyncClient:
@@ -32,28 +57,46 @@ async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
     rep = await clt.get(url)
 
     rep.raise_for_status()
-    if ">document.location =" not in rep.text:
-        return rep.text
+    page_text = rep.text
+    if reason := detect_invalid_x_page(page_text):
+        logger.error(
+            f"Invalid X HTML response detected ({reason}). HTML preview: {page_text[:500]!r}"
+        )
+        raise XClIdGenError(f"Invalid X HTML response: {reason}")
 
-    redirect_text = _split_or_raise(rep.text, 'document.location = "', "Failed to parse x.com redirect location")
-    url = redirect_text.split('"')[0]
-    rep = await clt.get(url)
+    if ">document.location =" not in page_text:
+        return page_text
+
+    redirect_url = safe_find_between(page_text, 'document.location = "', '"')
+    if redirect_url is None:
+        logger.error(
+            f"Failed to parse x.com redirect location. HTML preview: {page_text[:500]!r}"
+        )
+        raise XClIdGenError("Failed to parse x.com redirect location")
+
+    rep = await clt.get(redirect_url)
     rep.raise_for_status()
-    if 'action="https://x.com/x/migrate" method="post"' not in rep.text:
-        return rep.text
+    page_text = rep.text
+    if reason := detect_invalid_x_page(page_text):
+        logger.error(
+            f"Invalid X HTML response detected after redirect ({reason}). HTML preview: {page_text[:500]!r}"
+        )
+        raise XClIdGenError(f"Invalid X HTML response after redirect: {reason}")
 
-    data = {}
-    inputs = rep.text.split("<input")[1:]
-    if not inputs:
+    if 'action="https://x.com/x/migrate" method="post"' not in page_text:
+        return page_text
+
+    soup = bs4.BeautifulSoup(page_text, "html.parser")
+    data = {
+        tag["name"]: tag["value"]
+        for tag in soup.find_all("input", attrs={"name": True, "value": True})
+    }
+
+    if not data:
+        logger.error(
+            f"Failed to parse x.com migrate form inputs. HTML preview: {page_text[:500]!r}"
+        )
         raise XClIdGenError("Failed to parse x.com migrate form inputs")
-
-    for x in inputs:
-        if 'name="' not in x or 'value="' not in x:
-            continue
-
-        name = x.split('name="')[1].split('"')[0]
-        value = x.split('value="')[1].split('"')[0]
-        data[name] = value
 
     rep = await clt.post("https://x.com/x/migrate", json=data)
     rep.raise_for_status()
@@ -66,11 +109,22 @@ def script_url(k: str, v: str):
 
 
 def get_scripts_list(text: str):
-    marker_start = 'e=>e+".+"'
+    if detect_invalid_x_page(text):
+        raise XClIdGenError("Invalid X HTML response while extracting scripts")
+
+    marker_start = 'e=>e+"."+'
     marker_end = '[e]+"a.js"'
-    if marker_start not in text or marker_end not in text:
+    start_idx = text.find(marker_start)
+    if start_idx == -1:
+        logger.error(f"Failed to parse XClientTxId script list markers. HTML preview: {text[:500]!r}")
         raise XClIdGenError("Couldn't parse XClientTxId script list markers")
-    scripts = text.split(marker_start)[1].split(marker_end)[0]
+
+    end_idx = text.find(marker_end, start_idx)
+    if end_idx == -1:
+        logger.error(f"Failed to parse XClientTxId script list markers. HTML preview: {text[:500]!r}")
+        raise XClIdGenError("Couldn't parse XClientTxId script list markers")
+
+    scripts = text[start_idx + len(marker_start) : end_idx]
 
     try:
         data = json.loads(scripts)
@@ -82,7 +136,7 @@ def get_scripts_list(text: str):
         try:
             data = json.loads(fixed_scripts)
         except json.decoder.JSONDecodeError as e:
-            raise Exception("Failed to parse scripts (even after repair)") from e
+            raise XClIdGenError("Failed to parse scripts (even after repair)") from e
 
     for k, v in data.items():
         yield script_url(k, f"{v}a")
@@ -216,7 +270,7 @@ def parse_vk_bytes(soup: bs4.BeautifulSoup) -> list[int]:
     el = soup.find("meta", {"name": "twitter-site-verification", "content": True})
     el = str(el.get("content")) if el and isinstance(el, bs4.Tag) else None
     if not el:
-        raise Exception("Couldn't get XClientTxId key bytes")
+        raise XClIdGenError("Couldn't get XClientTxId key bytes")
 
     return list(base64.b64decode(bytes(el, "utf-8")))
 
@@ -225,13 +279,14 @@ async def parse_anim_idx(text: str) -> list[int]:
     scripts = list(get_scripts_list(text))
     scripts = [x for x in scripts if "/ondemand.s." in x]
     if not scripts:
-        raise Exception("Couldn't get XClientTxId scripts")
+        raise XClIdGenError("Couldn't get XClientTxId scripts")
 
     text = await get_tw_page_text(scripts[0])
 
     items = [int(x.group(2)) for x in INDICES_REGEX.finditer(text)]
     if not items:
-        raise Exception("Couldn't get XClientTxId indices")
+        logger.error(f"Couldn't get XClientTxId indices. JS preview: {text[:500]!r}")
+        raise XClIdGenError("Couldn't get XClientTxId indices")
 
     return items
 
@@ -240,18 +295,27 @@ def parse_anim_arr(soup: bs4.BeautifulSoup, vk_bytes: list[int]) -> list[list[fl
     els = list(soup.select("svg[id^='loading-x-anim'] g:first-child path:nth-child(2)"))
     els = [str(x.get("d") or "").strip() for x in els]
     if not els:
-        raise Exception("Couldn't get XClientTxId animation array")
+        raise XClIdGenError("Couldn't get XClientTxId animation array")
 
-    idx = vk_bytes[5] % len(els)
-    dat = els[idx][9:].split("C")
-    arr = [list(map(float, re.sub(r"[^\d]+", " ", x).split())) for x in dat]
+    try:
+        idx = vk_bytes[5] % len(els)
+        dat = els[idx][9:].split("C")
+        arr = [list(map(float, re.sub(r"[^\d]+", " ", x).split())) for x in dat]
+    except Exception as e:
+        raise XClIdGenError("Couldn't parse XClientTxId animation array") from e
+
     return arr
 
 
 async def load_keys(soup: bs4.BeautifulSoup) -> tuple[list[int], str]:
-    anim_idx = await parse_anim_idx(str(soup))
-    vk_bytes = parse_vk_bytes(soup)
-    anim_arr = parse_anim_arr(soup, vk_bytes)
+    try:
+        anim_idx = await parse_anim_idx(str(soup))
+        vk_bytes = parse_vk_bytes(soup)
+        anim_arr = parse_anim_arr(soup, vk_bytes)
+    except XClIdGenError:
+        raise
+    except Exception as e:
+        raise XClIdGenError("Failed to load XClIdGen keys") from e
 
     frame_time = 1
     for x in anim_idx[1:]:
@@ -268,11 +332,15 @@ async def load_keys(soup: bs4.BeautifulSoup) -> tuple[list[int], str]:
 class XClIdGen:
     @staticmethod
     async def create(clt: httpx.AsyncClient | None = None) -> "XClIdGen":
-        text = await get_tw_page_text("https://x.com/elonmusk", clt=clt)
-        soup = bs4.BeautifulSoup(text, "html.parser")
-
-        vk_bytes, anim_key = await load_keys(soup)
-        return XClIdGen(vk_bytes, anim_key)
+        try:
+            text = await get_tw_page_text("https://x.com/elonmusk", clt=clt)
+            soup = bs4.BeautifulSoup(text, "html.parser")
+            vk_bytes, anim_key = await load_keys(soup)
+            return XClIdGen(vk_bytes, anim_key)
+        except XClIdGenError:
+            raise
+        except Exception as e:
+            raise XClIdGenError("Failed to generate XClId") from e
 
     def __init__(self, vk_bytes: list[int], anim_key: str):
         self.vk_bytes = vk_bytes

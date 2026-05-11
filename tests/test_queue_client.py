@@ -4,7 +4,7 @@ import httpx
 from pytest_httpx import HTTPXMock
 
 from twscrape.accounts_pool import AccountsPool
-from twscrape.queue_client import QueueClient
+from twscrape.queue_client import QueueClient, XClIdGenError, XClIdGenStore
 
 DB_FILE = "/tmp/twscrape_test_queue_client.db"
 URL = "https://example.com/api"
@@ -115,6 +115,26 @@ async def test_retry_with_same_acc_on_network_error(httpx_mock: HTTPXMock, clien
     # check username added to request obj (for logging)
     username = getattr(rep, "__username", None)
     assert username is not None
+
+
+async def test_xclid_error_does_not_lock_account(httpx_mock: HTTPXMock, client_fixture: CF, monkeypatch):
+    pool, client = client_fixture
+
+    await client.__aenter__()
+    locked1 = await get_locked(pool)
+    assert len(locked1) == 1
+
+    async def fake_get(cls, username, fresh=False):
+        raise XClIdGenError("Failed to generate XClId")
+
+    monkeypatch.setattr(XClIdGenStore, "get", classmethod(fake_get))
+
+    rep = await client.get(URL)
+    assert rep is None
+    assert client.ctx is None
+
+    locked2 = await get_locked(pool)
+    assert len(locked2) == 0
 
 
 async def test_ctx_closed_on_break(httpx_mock: HTTPXMock, client_fixture: CF):
