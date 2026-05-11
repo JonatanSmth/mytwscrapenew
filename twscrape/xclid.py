@@ -5,6 +5,7 @@ import math
 import random
 import re
 import time
+from enum import Enum
 
 import bs4
 import httpx
@@ -19,6 +20,71 @@ class XClIdGenError(Exception):
 
 class InvalidXSessionError(XClIdGenError):
     """Raised when x.com responds with a login or WAF page instead of a valid session."""
+
+
+class SessionExpiredError(InvalidXSessionError):
+    """Raised when X returns a 401/unauthorized response."""
+
+
+class AntiBotBlockedError(InvalidXSessionError):
+    """Raised when X returns a bot challenge or WAF page."""
+
+
+class CookieInvalidError(InvalidXSessionError):
+    """Raised when X returns a login page indicating invalid cookies."""
+
+
+class XDebugReason(Enum):
+    OK = "ok"
+    COOKIE_INVALID = "cookie_invalid"
+    WAF_BLOCK = "waf_block"
+    AUTH_401 = "auth_401"
+    UNKNOWN = "unknown"
+
+
+x_debug_metrics = {
+    "auth_failures": 0,
+    "waf_blocks": 0,
+    "cookie_invalid": 0,
+    "unknown": 0,
+    "guest_fallback_used": 0,
+}
+
+
+def classify_x_response(status_code: int, html: str) -> XDebugReason:
+    lower = html.lower()
+    if status_code == 401:
+        return XDebugReason.AUTH_401
+    if "challenge" in lower or "captcha" in lower or "verify you're human" in lower or "complete the security check" in lower:
+        return XDebugReason.WAF_BLOCK
+    if "login" in lower:
+        return XDebugReason.COOKIE_INVALID
+    return XDebugReason.UNKNOWN
+
+
+def increment_x_debug_metric(reason: XDebugReason):
+    key = {
+        XDebugReason.AUTH_401: "auth_failures",
+        XDebugReason.WAF_BLOCK: "waf_blocks",
+        XDebugReason.COOKIE_INVALID: "cookie_invalid",
+        XDebugReason.UNKNOWN: "unknown",
+    }.get(reason)
+    if key:
+        x_debug_metrics[key] += 1
+
+
+def get_x_debug_metrics():
+    return dict(x_debug_metrics)
+
+
+def reason_to_error(reason: XDebugReason, message: str) -> XClIdGenError:
+    if reason == XDebugReason.AUTH_401:
+        return SessionExpiredError(message)
+    if reason == XDebugReason.WAF_BLOCK:
+        return AntiBotBlockedError(message)
+    if reason == XDebugReason.COOKIE_INVALID:
+        return CookieInvalidError(message)
+    return XClIdGenError(message)
 
 
 def _split_or_raise(text: str, sep: str, message: str) -> str:
@@ -51,23 +117,25 @@ def detect_invalid_x_page(text: str) -> str | None:
     return None
 
 
-def _make_client() -> httpx.AsyncClient:
+def _make_client(proxy: str | None = None) -> httpx.AsyncClient:
     headers = {"user-agent": UserAgent().chrome}
-    return httpx.AsyncClient(headers=headers, follow_redirects=True)
+    return httpx.AsyncClient(headers=headers, follow_redirects=True, proxy=proxy)
 
 
 async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
     clt = clt or _make_client()
     rep = await clt.get(url)
+    page_text = rep.text
+
+    reason = classify_x_response(rep.status_code, page_text)
+    if reason != XDebugReason.OK:
+        increment_x_debug_metric(reason)
+        logger.error(
+            f"Invalid X HTML response detected ({reason.value}). HTML preview: {page_text[:500]!r}"
+        )
+        raise reason_to_error(reason, f"Invalid X HTML response: {reason.value}")
 
     rep.raise_for_status()
-    page_text = rep.text
-    if reason := detect_invalid_x_page(page_text):
-        logger.error(
-            f"Invalid X HTML response detected ({reason}). HTML preview: {page_text[:500]!r}"
-        )
-        raise InvalidXSessionError(f"Invalid X HTML response: {reason}")
-
     if ">document.location =" not in page_text:
         return page_text
 
@@ -79,13 +147,17 @@ async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
         raise XClIdGenError("Failed to parse x.com redirect location")
 
     rep = await clt.get(redirect_url)
-    rep.raise_for_status()
     page_text = rep.text
-    if reason := detect_invalid_x_page(page_text):
+
+    reason = classify_x_response(rep.status_code, page_text)
+    if reason != XDebugReason.OK:
+        increment_x_debug_metric(reason)
         logger.error(
-            f"Invalid X HTML response detected after redirect ({reason}). HTML preview: {page_text[:500]!r}"
+            f"Invalid X HTML response detected after redirect ({reason.value}). HTML preview: {page_text[:500]!r}"
         )
-        raise InvalidXSessionError(f"Invalid X HTML response after redirect: {reason}")
+        raise reason_to_error(reason, f"Invalid X HTML response after redirect: {reason.value}")
+
+    rep.raise_for_status()
 
     if 'action="https://x.com/x/migrate" method="post"' not in page_text:
         return page_text
@@ -338,6 +410,18 @@ class XClIdGen:
     async def create(clt: httpx.AsyncClient | None = None) -> "XClIdGen":
         try:
             text = await get_tw_page_text("https://x.com/elonmusk", clt=clt)
+        except (httpx.HTTPStatusError, InvalidXSessionError) as e:
+            if clt is not None:
+                logger.warning(
+                    "XClIdGen: account client fetch failed (%s), retrying with guest client",
+                    e,
+                )
+                async with _make_client() as guest_client:
+                    text = await get_tw_page_text("https://x.com/elonmusk", clt=guest_client)
+            else:
+                raise
+
+        try:
             soup = bs4.BeautifulSoup(text, "html.parser")
             vk_bytes, anim_key = await load_keys(soup)
             return XClIdGen(vk_bytes, anim_key)

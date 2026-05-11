@@ -11,7 +11,13 @@ from httpx import AsyncClient, Response
 from .accounts_pool import Account, AccountsPool
 from .logger import logger
 from .utils import utc
-from .xclid import InvalidXSessionError, XClIdGen, XClIdGenError, detect_invalid_x_page
+from .xclid import (
+    InvalidXSessionError,
+    XClIdGen,
+    XClIdGenError,
+    detect_invalid_x_page,
+    get_x_debug_metrics,
+)
 
 ReqParams = dict[str, str | int] | None
 TMP_TS = utc.now().isoformat().split(".")[0].replace("T", "_").replace(":", "-")[0:16]
@@ -299,6 +305,13 @@ class QueueClient:
                 await self._close_ctx(-1, inactive=True, msg=str(e))
                 return None
             except XClIdGenError as e:
+                metrics = get_x_debug_metrics()
+                logger.info(
+                    f"[x_monitor] auth_failures={metrics['auth_failures']} "
+                    f"waf_blocks={metrics['waf_blocks']} "
+                    f"cookie_invalid={metrics['cookie_invalid']} "
+                    f"guest_fallback_used={metrics['guest_fallback_used']}"
+                )
                 logger.error(f"XClId generation failed: {e}")
                 await self._close_ctx()
                 return None

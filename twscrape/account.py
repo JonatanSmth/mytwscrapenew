@@ -82,7 +82,8 @@ class Account(JSONTrait):
 
         if self.cookies:
             logger.debug(
-                f"Account {self.username}: client initialized with {len(self.cookies)} cookies; ct0_present={'ct0' in self.cookies}"
+                f"Account {self.username}: client initialized with {len(self.cookies)} cookies; "
+                f"ct0_present={'ct0' in self.cookies}; keys={sorted(self.cookies.keys())}"
             )
         else:
             logger.debug(f"Account {self.username}: client initialized without cookies")

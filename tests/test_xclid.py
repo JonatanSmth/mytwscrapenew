@@ -1,7 +1,13 @@
 import httpx
 import pytest
 
-from twscrape.xclid import XClIdGenError, get_scripts_list, get_tw_page_text
+from twscrape.xclid import (
+    XClIdGenError,
+    XDebugReason,
+    classify_x_response,
+    get_scripts_list,
+    get_tw_page_text,
+)
 
 
 def test_get_scripts_list_raises_xclid_error_on_missing_markers():
@@ -43,3 +49,15 @@ async def test_get_tw_page_text_detects_waf_page():
 
     with pytest.raises(XClIdGenError, match="WAF"):
         await get_tw_page_text("https://x.com/elonmusk", clt=FakeClient())
+
+
+def test_401_is_detected():
+    assert classify_x_response(401, "") == XDebugReason.AUTH_401
+
+
+def test_login_html_detected():
+    assert classify_x_response(200, "<html>login</html>") == XDebugReason.COOKIE_INVALID
+
+
+def test_challenge_html_detected():
+    assert classify_x_response(200, "<html>challenge</html>") == XDebugReason.WAF_BLOCK
