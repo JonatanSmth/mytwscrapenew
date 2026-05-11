@@ -110,6 +110,21 @@ class API:
             return cur.get("value")
         return None
 
+    def _get_gql_entries(self, obj: dict) -> list[dict]:
+        entries = get_by_path(obj, "entries")
+        if not isinstance(entries, list):
+            return []
+        return [
+            x
+            for x in entries
+            if isinstance(x, dict)
+            and "entryId" in x
+            and not (
+                x["entryId"].startswith("cursor-")
+                or x["entryId"].startswith("messageprompt-")
+            )
+        ]
+
     # gql helpers
 
     async def _gql_items(
@@ -138,19 +153,7 @@ class API:
                     return
                 if not isinstance(obj, dict):
                     return
-                els = get_by_path(obj, "entries") or []
-                if not isinstance(els, list):
-                    return
-                els = [
-                    x
-                    for x in els
-                    if isinstance(x, dict)
-                    and "entryId" in x
-                    and not (
-                        x["entryId"].startswith("cursor-")
-                        or x["entryId"].startswith("messageprompt-")
-                    )
-                ]
+                els = self._get_gql_entries(obj)
                 cur = self._get_cursor(obj, cursor_type)
 
                 rep, cnt, active = self._is_end(rep, queue, els, cur, cnt, limit)
