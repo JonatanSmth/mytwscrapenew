@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
@@ -8,7 +9,8 @@ from httpx import AsyncClient, AsyncHTTPTransport
 
 from .logger import logger
 from .models import JSONTrait
-from .utils import utc
+from .utils import get_env_bool, utc
+from .xclid import ClientStateViolationError
 
 
 @dataclass
@@ -48,6 +50,9 @@ class Account(JSONTrait):
     error_msg: str | None = None
     last_used: datetime | None = None
     _tx: str | None = None
+    _http_client: AsyncClient | None = field(default=None, init=False, repr=False)
+    _http_client_instance_id: str | None = field(default=None, init=False, repr=False)
+    _http_client_proxy: str | None = field(default=None, init=False, repr=False)
 
     @staticmethod
     def from_rs(rs: sqlite3.Row):
@@ -62,6 +67,8 @@ class Account(JSONTrait):
 
     def to_rs(self):
         rs = asdict(self)
+        for key in ("_http_client", "_http_client_instance_id", "_http_client_proxy"):
+            rs.pop(key, None)
         rs["locks"] = json.dumps(rs["locks"], default=lambda x: x.isoformat())
         rs["stats"] = json.dumps(rs["stats"])
         rs["headers"] = json.dumps(rs["headers"])
@@ -73,6 +80,14 @@ class Account(JSONTrait):
         proxies = [proxy, os.getenv("TWS_PROXY"), self.proxy]
         proxies = [x for x in proxies if x is not None]
         proxy = proxies[0] if proxies else None
+
+        if self._http_client is not None:
+            if proxy != self._http_client_proxy:
+                raise ClientStateViolationError(
+                    f"Attempt to recreate HTTP client for {self.username} with a different proxy. "
+                    f"existing_proxy={self._http_client_proxy!r}, requested_proxy={proxy!r}"
+                )
+            return self._http_client
 
         transport = AsyncHTTPTransport(retries=3)
         client = AsyncClient(proxy=proxy, follow_redirects=True, transport=transport)
@@ -94,5 +109,29 @@ class Account(JSONTrait):
         client.headers["authorization"] = TOKEN
         client.headers["x-twitter-active-user"] = "yes"
         client.headers["x-twitter-client-language"] = "en"
+
+        client.__proxy = proxy
+        client.__account_username = self.username
+        client.__guest_client = False
+        client.__instance_id = uuid.uuid4().hex
+
+        self._http_client = client
+        self._http_client_instance_id = client.__instance_id
+        self._http_client_proxy = proxy
+
+        if get_env_bool("XCLIENT_DEBUG"):
+            logger.info(
+                "[XCLIENT_STATE] account=%s client_type=account cookie_count=%s cookies=%s "
+                "ct0=%s auth_token=%s fingerprint=%s ua=%s proxy=%s request_url=%s",
+                self.username,
+                len(self.cookies),
+                sorted(self.cookies.keys()),
+                'ct0' in self.cookies,
+                'auth_token' in self.cookies,
+                bool(client.headers.get("x-twitter-client-language")),
+                client.headers.get("user-agent", ""),
+                proxy or "none",
+                "<not requested yet>",
+            )
 
         return client

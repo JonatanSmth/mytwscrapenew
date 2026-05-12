@@ -1,4 +1,7 @@
+import pytest
+
 from twscrape.account import Account
+from twscrape.xclid import ClientStateViolationError
 
 
 def test_make_client_sets_browser_cookies_and_csrf():
@@ -27,3 +30,30 @@ def test_make_client_sets_browser_cookies_and_csrf():
     assert client.cookies["twid"] == "twid"
     assert client.headers["x-csrf-token"] == "csrf"
     assert client.headers["user-agent"] == "test-agent"
+
+
+def test_make_client_returns_cached_client_and_detects_recreation():
+    account = Account(
+        username="user",
+        password="pass",
+        email="user@example.com",
+        email_password="email_pass",
+        user_agent="test-agent",
+        active=True,
+        locks={},
+        stats={},
+        headers={},
+        cookies={"auth_token": "token", "ct0": "csrf", "twid": "twid"},
+        mfa_code=None,
+        proxy=None,
+        error_msg=None,
+        last_used=None,
+        _tx=None,
+    )
+
+    first_client = account.make_client()
+    second_client = account.make_client()
+    assert first_client is second_client
+
+    with pytest.raises(ClientStateViolationError):
+        account.make_client(proxy="http://proxy.example.com")

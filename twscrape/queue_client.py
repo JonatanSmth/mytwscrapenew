@@ -10,7 +10,7 @@ from httpx import AsyncClient, Response
 
 from .accounts_pool import Account, AccountsPool
 from .logger import logger
-from .utils import utc
+from .utils import get_env_bool, utc
 from .xclid import (
     InvalidXSessionError,
     XClIdGen,
@@ -142,7 +142,7 @@ class QueueClient:
     def __init__(self, pool: AccountsPool, queue: str, debug=False, proxy: str | None = None):
         self.pool = pool
         self.queue = queue
-        self.debug = debug
+        self.debug = debug or get_env_bool("XCLIENT_DEBUG")
         self.ctx: Ctx | None = None
         self.proxy = proxy
 

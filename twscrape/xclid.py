@@ -12,6 +12,7 @@ import httpx
 from fake_useragent import UserAgent
 
 from .logger import logger
+from .utils import get_env_bool
 
 
 class XClIdGenError(Exception):
@@ -20,6 +21,14 @@ class XClIdGenError(Exception):
 
 class InvalidXSessionError(XClIdGenError):
     """Raised when x.com responds with a login or WAF page instead of a valid session."""
+
+
+class InvalidAccountStateError(InvalidXSessionError):
+    """Raised when an account client is missing critical auth state before XClId generation."""
+
+
+class ClientStateViolationError(XClIdGenError):
+    """Raised when an account HTTP client is recreated or mutated outside its lifecycle."""
 
 
 class SessionExpiredError(InvalidXSessionError):
@@ -57,9 +66,9 @@ def classify_x_response(status_code: int, html: str) -> XDebugReason:
         return XDebugReason.AUTH_401
     if "challenge" in lower or "captcha" in lower or "verify you're human" in lower or "complete the security check" in lower:
         return XDebugReason.WAF_BLOCK
-    if "login" in lower:
+    if "login" in lower or "log in" in lower:
         return XDebugReason.COOKIE_INVALID
-    return XDebugReason.UNKNOWN
+    return XDebugReason.OK
 
 
 def increment_x_debug_metric(reason: XDebugReason):
@@ -85,6 +94,68 @@ def reason_to_error(reason: XDebugReason, message: str) -> XClIdGenError:
     if reason == XDebugReason.COOKIE_INVALID:
         return CookieInvalidError(message)
     return XClIdGenError(message)
+
+
+def _is_guest_client(clt: httpx.AsyncClient | None) -> bool:
+    return bool(
+        getattr(clt, "__guest_client", False)
+        or getattr(clt, "_guest_client", False)
+        or getattr(clt, "guest_client", False)
+    )
+
+
+def build_xclient_state(clt: httpx.AsyncClient | None, request_url: str) -> dict[str, str | bool | int | list[str] | None]:
+    if not clt:
+        return {
+            "account": "<unknown>",
+            "client_type": "guest",
+            "cookie_count": 0,
+            "cookies_present_keys": [],
+            "ct0_present": False,
+            "auth_token_present": False,
+            "fingerprint_attached": False,
+            "proxy": None,
+            "user_agent": None,
+            "request_url": request_url,
+        }
+
+    cookies = list(clt.cookies.keys()) if hasattr(clt, "cookies") else []
+    proxy = getattr(clt, "__proxy", None)
+    headers = clt.headers if hasattr(clt, "headers") else {}
+    ua = headers.get("user-agent")
+    fingerprint_attached = bool(
+        headers.get("x-twitter-client-language")
+        or headers.get("x-twitter-active-user")
+        or headers.get("x-twitter-auth-type")
+    )
+    return {
+        "account": getattr(clt, "__account_username", "<unknown>"),
+        "client_type": "guest" if _is_guest_client(clt) else "account",
+        "cookie_count": len(cookies),
+        "cookies_present_keys": cookies,
+        "ct0_present": "ct0" in cookies,
+        "auth_token_present": "auth_token" in cookies,
+        "fingerprint_attached": fingerprint_attached,
+        "proxy": proxy or "none",
+        "user_agent": ua or "",
+        "request_url": request_url,
+    }
+
+
+def log_xclient_state(clt: httpx.AsyncClient | None, request_url: str) -> None:
+    state = build_xclient_state(clt, request_url)
+    lines = ["[XCLIENT_STATE]"]
+    lines.append(f"account={state['account']}")
+    lines.append(f"client_type={state['client_type']}")
+    lines.append(f"cookie_count={state['cookie_count']}")
+    lines.append(f"cookies={state['cookies_present_keys']}")
+    lines.append(f"ct0_present={state['ct0_present']}")
+    lines.append(f"auth_token_present={state['auth_token_present']}")
+    lines.append(f"fingerprint_attached={state['fingerprint_attached']}")
+    lines.append(f"ua={state['user_agent']}")
+    lines.append(f"proxy={state['proxy']}")
+    lines.append(f"request_url={state['request_url']}")
+    logger.info("\n".join(lines))
 
 
 def _split_or_raise(text: str, sep: str, message: str) -> str:
@@ -119,11 +190,26 @@ def detect_invalid_x_page(text: str) -> str | None:
 
 def _make_client(proxy: str | None = None) -> httpx.AsyncClient:
     headers = {"user-agent": UserAgent().chrome}
-    return httpx.AsyncClient(headers=headers, follow_redirects=True, proxy=proxy)
+    client = httpx.AsyncClient(headers=headers, follow_redirects=True, proxy=proxy)
+    client.__guest_client = True
+    client.__proxy = proxy
+    client.__account_username = "<guest>"
+    client.__instance_id = None
+    return client
 
 
 async def get_tw_page_text(url: str, clt: httpx.AsyncClient | None = None):
     clt = clt or _make_client()
+    log_xclient_state(clt, url)
+
+    if clt is not None and not _is_guest_client(clt):
+        cookies = list(clt.cookies.keys()) if hasattr(clt, "cookies") else []
+        if "ct0" not in cookies or "auth_token" not in cookies:
+            missing = [k for k in ("auth_token", "ct0") if k not in cookies]
+            raise InvalidAccountStateError(
+                f"Account client missing critical state: {', '.join(missing)}"
+            )
+
     rep = await clt.get(url)
     page_text = rep.text
 
@@ -410,14 +496,22 @@ class XClIdGen:
     async def create(clt: httpx.AsyncClient | None = None) -> "XClIdGen":
         try:
             text = await get_tw_page_text("https://x.com/elonmusk", clt=clt)
-        except (httpx.HTTPStatusError, InvalidXSessionError) as e:
+        except (httpx.HTTPStatusError, InvalidXSessionError, InvalidAccountStateError) as e:
             if clt is not None:
-                logger.warning(
-                    "XClIdGen: account client fetch failed (%s), retrying with guest client",
-                    e,
-                )
-                async with _make_client() as guest_client:
-                    text = await get_tw_page_text("https://x.com/elonmusk", clt=guest_client)
+                if get_env_bool("GUEST_MODE"):
+                    x_debug_metrics["guest_fallback_used"] += 1
+                    logger.warning(
+                        "XClIdGen: account client fetch failed (%s), falling back to guest client because GUEST_MODE=true",
+                        e,
+                    )
+                    async with _make_client() as guest_client:
+                        text = await get_tw_page_text("https://x.com/elonmusk", clt=guest_client)
+                else:
+                    logger.error(
+                        "XClIdGen: account client failed and guest fallback forbidden (%s)",
+                        e,
+                    )
+                    raise
             else:
                 raise
 
