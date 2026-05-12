@@ -12,7 +12,7 @@ from .account import Account
 from .db import execute, fetchall, fetchone
 from .logger import logger
 from .login import LoginConfig, login
-from .utils import get_env_bool, parse_cookies, utc
+from .utils import CookieConfigError, get_env_bool, log_cookie_config_diagnostics, parse_cookies, utc
 
 
 class NoAccountError(Exception):
@@ -43,6 +43,7 @@ class AccountsPool:
         login_config: LoginConfig | None = None,
         raise_when_no_account=False,
     ):
+        log_cookie_config_diagnostics(logger)
         self._db_file = db_file
         self._login_config = login_config or LoginConfig()
         self._raise_when_no_account = raise_when_no_account

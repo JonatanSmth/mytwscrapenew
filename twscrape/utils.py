@@ -186,6 +186,60 @@ def print_table(rows: list[dict], hr_after=False):
         print("-" * max_len)
 
 
+class CookieConfigError(Exception):
+    pass
+
+
+def _cookie_value_preview(value: str) -> str:
+    if not isinstance(value, str) or value == "":
+        return ""
+    return f"{value[:6]}..." if len(value) > 6 else f"{value}..."
+
+
+def _normalize_cookie_payload(payload: object) -> dict[str, str]:
+    if isinstance(payload, dict):
+        return {str(k): str(v) for k, v in payload.items()}
+
+    if isinstance(payload, list):
+        return {str(item["name"]): str(item["value"]) for item in payload}
+
+    raise ValueError("Invalid JSON cookie structure")
+
+
+def log_cookie_config_diagnostics(logger):
+    env_value = os.getenv("X_COOKIES_JSON")
+    env_present = env_value is not None
+    json_length = len(env_value) if env_present else 0
+    parsed_cookies: dict[str, str] = {}
+
+    if env_present:
+        try:
+            payload = json.loads(env_value)
+        except json.JSONDecodeError as err:
+            raise CookieConfigError(err)
+        if isinstance(payload, dict) and "cookies" in payload:
+            payload = payload["cookies"]
+        parsed_cookies = _normalize_cookie_payload(payload)
+    else:
+        raw_cookies = os.getenv("X_COOKIES")
+        if raw_cookies:
+            try:
+                parsed_cookies = parse_cookies(raw_cookies)
+            except Exception:
+                parsed_cookies = {}
+
+    cookie_keys = sorted(parsed_cookies.keys())
+    auth_token_preview = _cookie_value_preview(parsed_cookies.get("auth_token", ""))
+    ct0_preview = _cookie_value_preview(parsed_cookies.get("ct0", ""))
+
+    logger.info("[X_COOKIE_DEBUG]")
+    logger.info("env_present=%s", env_present)
+    logger.info("json_length=%s", json_length)
+    logger.info("cookie_keys=%s", cookie_keys)
+    logger.info("auth_token_preview=%s", auth_token_preview)
+    logger.info("ct0_preview=%s", ct0_preview)
+
+
 def parse_cookies(val: str) -> dict[str, str]:
     try:
         val = base64.b64decode(val).decode()

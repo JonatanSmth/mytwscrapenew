@@ -9,7 +9,7 @@ from httpx import AsyncClient, AsyncHTTPTransport
 
 from .logger import logger
 from .models import JSONTrait
-from .utils import get_env_bool, utc
+from .utils import get_env_bool, log_cookie_config_diagnostics, utc
 from .xclid import ClientStateViolationError
 
 
@@ -31,6 +31,10 @@ class XSession:
             logger.warning("Session cookies provided but missing ct0; session will be invalid until ct0 is present")
 
 TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
+
+
+class ClientCookieInjectionError(Exception):
+    pass
 
 
 @dataclass
@@ -77,6 +81,8 @@ class Account(JSONTrait):
         return rs
 
     def make_client(self, proxy: str | None = None) -> AsyncClient:
+        log_cookie_config_diagnostics(logger)
+
         proxies = [proxy, os.getenv("TWS_PROXY"), self.proxy]
         proxies = [x for x in proxies if x is not None]
         proxy = proxies[0] if proxies else None
@@ -94,6 +100,11 @@ class Account(JSONTrait):
 
         # saved from previous usage
         XSession(self.cookies, self.headers, proxy=self.proxy).apply_to_client(client)
+
+        if self.cookies and len(client.cookies) == 0:
+            raise ClientCookieInjectionError(
+                f"Account {self.username}: cookies were provided but none were injected into the HTTP client"
+            )
 
         if self.cookies:
             logger.debug(

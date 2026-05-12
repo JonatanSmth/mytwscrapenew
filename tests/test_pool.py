@@ -1,5 +1,7 @@
+import pytest
+
 from twscrape.accounts_pool import AccountsPool
-from twscrape.utils import utc
+from twscrape.utils import CookieConfigError, utc
 
 
 async def test_add_accounts(pool_mock: AccountsPool):
@@ -85,6 +87,14 @@ async def test_add_account_from_env_updates_existing(pool_mock: AccountsPool, mo
     assert acc.cookies["ct0"] == "abc123"
     assert acc.cookies["auth_token"] == "token123"
     assert acc.active is True
+
+
+async def test_cookie_json_diagnostic_fails_on_malformed_json(tmp_path, monkeypatch):
+    monkeypatch.setenv("X_COOKIES_JSON", "{invalid-json}")
+    with pytest.raises(CookieConfigError) as excinfo:
+        AccountsPool(str(tmp_path / "broken.db"))
+
+    assert "Expecting property name enclosed in double quotes" in str(excinfo.value)
 
 
 async def test_save(pool_mock: AccountsPool):
