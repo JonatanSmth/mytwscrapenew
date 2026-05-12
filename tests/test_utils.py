@@ -38,7 +38,15 @@ def test_cookies_parse():
 
     with pytest.raises(ValueError, match=r"Invalid cookie value: .+"):
         val = "{invalid}"
-        assert parse_cookies(val) == {}
+        parse_cookies(val)
+
+
+def test_parse_raw_cookie_string():
+    raw = "auth_token=xxx; ct0=yyy; twid=zzz"
+    assert parse_cookies(raw) == {"auth_token": "xxx", "ct0": "yyy", "twid": "zzz"}
+
+    raw = "eyJhdXRoX3Rva2VuIjogInh4eCIsICJjdDAiOiAieXl5In0="
+    assert parse_cookies(raw) == {"auth_token": "xxx", "ct0": "yyy"}
 
 
 def test_cookie_config_diagnostics_logs_runtime_cookie_object(monkeypatch):
@@ -80,4 +88,8 @@ def test_validate_cookie_env(monkeypatch):
         "X_COOKIES_JSON",
         '{"cookies": [{"name": "auth_token", "value": "token"}, {"name": "ct0", "value": "csrf"}]}',
     )
+    assert validate_cookie_env() == {"auth_token": "token", "ct0": "csrf"}
+
+    monkeypatch.delenv("X_COOKIES_JSON", raising=False)
+    monkeypatch.setenv("X_COOKIES", "auth_token=token; ct0=csrf")
     assert validate_cookie_env() == {"auth_token": "token", "ct0": "csrf"}

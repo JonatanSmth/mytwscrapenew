@@ -206,6 +206,34 @@ def _normalize_cookie_payload(payload: object) -> dict[str, str]:
     raise ValueError("Invalid JSON cookie structure")
 
 
+def parse_raw_cookie_string(raw: str) -> dict[str, str]:
+    if not isinstance(raw, str):
+        raise ValueError("Raw cookie string must be a string")
+
+    try:
+        raw = base64.b64decode(raw).decode()
+    except Exception:
+        pass
+
+    try:
+        payload = json.loads(raw)
+        if isinstance(payload, dict) and "cookies" in payload:
+            payload = payload["cookies"]
+        return _normalize_cookie_payload(payload)
+    except json.JSONDecodeError:
+        try:
+            pairs = [item.strip() for item in raw.split(";") if item.strip()]
+            parsed = {}
+            for item in pairs:
+                if "=" not in item:
+                    raise ValueError
+                name, value = item.split("=", 1)
+                parsed[name.strip()] = value
+            return parsed
+        except Exception:
+            raise ValueError(f"Invalid cookie value: {raw}")
+
+
 def _sanitize_env_preview(value: str) -> str:
     if not isinstance(value, str):
         return ""
@@ -231,26 +259,34 @@ def _detect_compose_source() -> str:
 
 def validate_cookie_env() -> dict[str, str]:
     env_value = os.getenv("X_COOKIES_JSON")
-    if env_value is None:
-        raise CookieConfigError("X_COOKIES_JSON is not set")
-    if env_value == "":
-        raise CookieConfigError("X_COOKIES_JSON is defined but empty")
+    if env_value is not None:
+        if env_value == "":
+            raise CookieConfigError("X_COOKIES_JSON is defined but empty")
 
-    try:
-        payload = json.loads(env_value)
-    except json.JSONDecodeError as err:
-        raise CookieConfigError(f"X_COOKIES_JSON invalid JSON: {err}") from err
+        try:
+            payload = json.loads(env_value)
+        except json.JSONDecodeError as err:
+            raise CookieConfigError(f"X_COOKIES_JSON invalid JSON: {err}") from err
 
-    if isinstance(payload, dict) and "cookies" in payload:
-        payload = payload["cookies"]
+        if isinstance(payload, dict) and "cookies" in payload:
+            payload = payload["cookies"]
 
-    parsed_cookies = _normalize_cookie_payload(payload)
+        parsed_cookies = _normalize_cookie_payload(payload)
+        source = "X_COOKIES_JSON"
+    else:
+        raw_cookies = os.getenv("X_COOKIES")
+        if raw_cookies is None:
+            raise CookieConfigError("X_COOKIES_JSON is not set and X_COOKIES is not set")
+
+        parsed_cookies = parse_raw_cookie_string(raw_cookies)
+        source = "X_COOKIES"
+
     if not parsed_cookies:
-        raise CookieConfigError("X_COOKIES_JSON parsed to an empty cookie object")
+        raise CookieConfigError(f"{source} parsed to an empty cookie object")
 
     missing = [k for k in ("auth_token", "ct0") if k not in parsed_cookies]
     if missing:
-        raise CookieConfigError(f"X_COOKIES_JSON missing required cookies: {missing}")
+        raise CookieConfigError(f"{source} missing required cookies: {missing}")
 
     return parsed_cookies
 
@@ -294,7 +330,7 @@ def log_cookie_config_diagnostics(logger):
         raw_cookies = os.getenv("X_COOKIES")
         if raw_cookies:
             try:
-                parsed_cookies = parse_cookies(raw_cookies)
+                parsed_cookies = parse_raw_cookie_string(raw_cookies)
                 payload_type = "raw-cookies"
                 payload_preview = repr(raw_cookies)[:300]
             except Exception:
@@ -321,29 +357,7 @@ def log_cookie_config_diagnostics(logger):
 
 
 def parse_cookies(val: str) -> dict[str, str]:
-    try:
-        val = base64.b64decode(val).decode()
-    except Exception:
-        pass
-
-    try:
-        try:
-            res = json.loads(val)
-            if isinstance(res, dict) and "cookies" in res:
-                res = res["cookies"]
-
-            if isinstance(res, list):
-                return {x["name"]: x["value"] for x in res}
-            if isinstance(res, dict):
-                return res
-        except json.JSONDecodeError:
-            res = val.split("; ")
-            res = [x.split("=") for x in res]
-            return {x[0]: x[1] for x in res}
-    except Exception:
-        pass
-
-    raise ValueError(f"Invalid cookie value: {val}")
+    return parse_raw_cookie_string(val)
 
 
 def get_env_bool(key: str, default_val: bool = False) -> bool:

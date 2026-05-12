@@ -9,10 +9,11 @@ from httpx import AsyncClient, AsyncHTTPTransport
 
 from .logger import logger
 from .models import JSONTrait
-from .utils import get_env_bool, log_cookie_config_diagnostics, utc, validate_cookie_env
+from .utils import _normalize_cookie_payload, get_env_bool, log_cookie_config_diagnostics, utc, validate_cookie_env
 from .xclid import ClientStateViolationError
 
 
+@dataclass
 @dataclass
 class XSession:
     cookies: dict[str, str] | list[dict[str, str]]
@@ -20,50 +21,33 @@ class XSession:
     proxy: str | None = None
     last_validated: int | None = None
 
+    def __post_init__(self):
+        if isinstance(self.cookies, list):
+            self.cookies = _normalize_cookie_payload(self.cookies)
+        elif not isinstance(self.cookies, dict):
+            raise ValueError("XSession cookies must be a dict or a list of cookie objects")
+
     def apply_to_client(self, client: AsyncClient):
-        cookies = self.cookies
-        if not cookies:
+        if isinstance(self.cookies, list):
+            self.cookies = _normalize_cookie_payload(self.cookies)
+
+        if not self.cookies:
             client.headers.update(self.headers)
             return
 
-        if isinstance(cookies, dict):
-            cookie_keys = list(cookies.keys())
-            cookie_mapping = {str(k): str(v) for k, v in cookies.items()}
-        elif isinstance(cookies, list):
-            cookie_keys = [str(item.get("name")) for item in cookies if isinstance(item, dict) and "name" in item]
-            cookie_mapping = {
-                str(item["name"]): str(item["value"])
-                for item in cookies
-                if isinstance(item, dict) and "name" in item and "value" in item
-            }
-        else:
-            cookie_keys = "non-dict"
-            cookie_mapping = {}
+        cookie_mapping = {str(k): str(v) for k, v in self.cookies.items()}
+        logger.info(f"[COOKIE_INJECTION_PRE] type={type(self.cookies).__name__} repr={repr(self.cookies)}")
 
-        logger.info(f"[COOKIE_INJECTION_PRE] count={len(cookies) if hasattr(cookies, '__len__') else 'unknown'} keys={cookie_keys}")
+        for name, value in cookie_mapping.items():
+            client.cookies.set(name, value, domain=".x.com", path="/")
 
-        if cookie_mapping:
-            try:
-                client.cookies.update(cookie_mapping)
-            except Exception as err:
-                logger.warning(f"Cookie update failed: {err}")
+        injected_items = list(client.cookies.items())
+        logger.info(f"[HTTPX_COOKIE_JAR] items={injected_items}")
 
-        jar_count = len(client.cookies.jar)
-        jar_names = [c.name for c in client.cookies.jar]
-        logger.info(f"[HTTPX_COOKIE_JAR] count={jar_count} cookies={jar_names}")
-
-        if jar_count == 0 and cookie_mapping:
-            logger.info("[COOKIE_INJECTION_FALLBACK] update empty, retrying with set(domain=.x.com, path=/)")
-            for name, value in cookie_mapping.items():
-                client.cookies.set(name, value, domain=".x.com", path="/")
-
-            jar_count = len(client.cookies.jar)
-            jar_names = [c.name for c in client.cookies.jar]
-            logger.info(f"[HTTPX_COOKIE_JAR] fallback count={jar_count} cookies={jar_names}")
-
-        if cookie_mapping and jar_count == 0:
+        if "auth_token" not in client.cookies or "ct0" not in client.cookies:
+            missing = [k for k in ("auth_token", "ct0") if k not in client.cookies]
             raise CookieInjectionFailure(
-                f"Account HTTPX cookie jar is empty after injection; cookie keys={cookie_keys}"
+                f"Account HTTPX cookie jar is missing required cookies after injection: {missing}"
             )
 
         client.headers.update(self.headers)
@@ -111,7 +95,7 @@ class Account(JSONTrait):
         doc["locks"] = {k: utc.from_iso(v) for k, v in json.loads(doc["locks"]).items()}
         doc["stats"] = {k: v for k, v in json.loads(doc["stats"]).items() if isinstance(v, int)}
         doc["headers"] = json.loads(doc["headers"])
-        doc["cookies"] = json.loads(doc["cookies"])
+        doc["cookies"] = _normalize_cookie_payload(json.loads(doc["cookies"]))
         doc["active"] = bool(doc["active"])
         doc["last_used"] = utc.from_iso(doc["last_used"]) if doc["last_used"] else None
         return Account(**doc)
@@ -152,7 +136,7 @@ class Account(JSONTrait):
         transport = AsyncHTTPTransport(retries=3)
         client = AsyncClient(proxy=proxy, follow_redirects=True, transport=transport)
 
-        # saved from previous usage
+        logger.info(f"[COOKIE_INJECTION_ACCOUNT] type={type(self.cookies).__name__} repr={repr(self.cookies)}")
         XSession(self.cookies, self.headers, proxy=self.proxy).apply_to_client(client)
 
         if self.cookies and len(client.cookies) == 0:
