@@ -206,45 +206,118 @@ def _normalize_cookie_payload(payload: object) -> dict[str, str]:
     raise ValueError("Invalid JSON cookie structure")
 
 
+def _sanitize_env_preview(value: str) -> str:
+    if not isinstance(value, str):
+        return ""
+    preview = value[:80]
+    return preview.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+
+
+def _detect_compose_source() -> str:
+    compose_file = os.getenv("COMPOSE_FILE") or os.getenv("DOCKER_COMPOSE_FILE")
+    if compose_file:
+        return f"COMPOSE_FILE={compose_file}"
+
+    compose_project = os.getenv("COMPOSE_PROJECT_NAME")
+    if compose_project:
+        return f"COMPOSE_PROJECT_NAME={compose_project}"
+
+    for filename in ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"):
+        if os.path.exists(filename):
+            return filename
+
+    return "unknown"
+
+
+def validate_cookie_env() -> dict[str, str]:
+    env_value = os.getenv("X_COOKIES_JSON")
+    if env_value is None:
+        raise CookieConfigError("X_COOKIES_JSON is not set")
+    if env_value == "":
+        raise CookieConfigError("X_COOKIES_JSON is defined but empty")
+
+    try:
+        payload = json.loads(env_value)
+    except json.JSONDecodeError as err:
+        raise CookieConfigError(f"X_COOKIES_JSON invalid JSON: {err}") from err
+
+    if isinstance(payload, dict) and "cookies" in payload:
+        payload = payload["cookies"]
+
+    parsed_cookies = _normalize_cookie_payload(payload)
+    if not parsed_cookies:
+        raise CookieConfigError("X_COOKIES_JSON parsed to an empty cookie object")
+
+    missing = [k for k in ("auth_token", "ct0") if k not in parsed_cookies]
+    if missing:
+        raise CookieConfigError(f"X_COOKIES_JSON missing required cookies: {missing}")
+
+    return parsed_cookies
+
+
+def _dump_runtime_env_info(logger):
+    env_path = os.path.abspath(".env")
+    compose_source = _detect_compose_source()
+
+    logger.info("[RUNTIME_ENV_DUMP]")
+    logger.info(f"cwd={os.getcwd()}")
+    logger.info(f"env_file_path={env_path}")
+    logger.info(f"env_file_exists={os.path.exists(env_path)}")
+    logger.info(f"compose_env_source={compose_source}")
+    logger.info(f"X_COOKIES_JSON_present={os.getenv('X_COOKIES_JSON') is not None}")
+
+
 def log_cookie_config_diagnostics(logger):
     env_value = os.getenv("X_COOKIES_JSON")
     env_present = env_value is not None
     json_length = len(env_value) if env_present else 0
     parsed_cookies: dict[str, str] = {}
+    payload_type = "<none>"
+    payload_preview = ""
 
     if env_present:
         try:
             payload = json.loads(env_value)
+            payload_type = type(payload).__name__
+            if isinstance(payload, dict) and "cookies" in payload:
+                payload = payload["cookies"]
+            payload_preview = repr(payload)[:300]
+            parsed_cookies = _normalize_cookie_payload(payload)
         except json.JSONDecodeError as err:
-            raise CookieConfigError(err)
-        if isinstance(payload, dict) and "cookies" in payload:
-            payload = payload["cookies"]
-
-        logger.info(
-            "[COOKIE_OBJECT] type=%s preview=%s",
-            type(payload).__name__,
-            repr(payload)[:300],
-        )
-
-        parsed_cookies = _normalize_cookie_payload(payload)
+            payload_type = "invalid-json"
+            payload_preview = repr(env_value[:300])
+            logger.error(f"[COOKIE_OBJECT] invalid_json={err}")
+        except ValueError:
+            payload_type = type(payload).__name__ if "payload" in locals() else "unknown"
+            payload_preview = repr(payload)[:300] if "payload" in locals() else ""
     else:
         raw_cookies = os.getenv("X_COOKIES")
         if raw_cookies:
             try:
                 parsed_cookies = parse_cookies(raw_cookies)
+                payload_type = "raw-cookies"
+                payload_preview = repr(raw_cookies)[:300]
             except Exception:
                 parsed_cookies = {}
+                payload_type = "raw-cookies"
+                payload_preview = repr(raw_cookies)[:300]
+
+    logger.info(f"[COOKIE_OBJECT] type={payload_type} preview={payload_preview}")
+    logger.info("[X_COOKIE_DEBUG]")
+    logger.info(f"env_present={env_present}")
+    logger.info(f"env_preview={_sanitize_env_preview(env_value or '')}")
+    logger.info(f"json_length={json_length}")
+    logger.info(f"parsed_type={payload_type}")
+    logger.info(f"parsed_cookie_count={len(parsed_cookies)}")
 
     cookie_keys = sorted(parsed_cookies.keys())
     auth_token_preview = _cookie_value_preview(parsed_cookies.get("auth_token", ""))
     ct0_preview = _cookie_value_preview(parsed_cookies.get("ct0", ""))
 
-    logger.info("[X_COOKIE_DEBUG]")
-    logger.info("env_present=%s", env_present)
-    logger.info("json_length=%s", json_length)
-    logger.info("cookie_keys=%s", cookie_keys)
-    logger.info("auth_token_preview=%s", auth_token_preview)
-    logger.info("ct0_preview=%s", ct0_preview)
+    logger.info(f"cookie_keys={cookie_keys}")
+    logger.info(f"auth_token_preview={auth_token_preview}")
+    logger.info(f"ct0_preview={ct0_preview}")
+    _dump_runtime_env_info(logger)
 
 
 def parse_cookies(val: str) -> dict[str, str]:

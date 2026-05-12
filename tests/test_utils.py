@@ -1,6 +1,6 @@
 import pytest
 
-from twscrape.utils import log_cookie_config_diagnostics, parse_cookies
+from twscrape.utils import CookieConfigError, log_cookie_config_diagnostics, parse_cookies, validate_cookie_env
 
 
 class DummyLogger:
@@ -53,3 +53,31 @@ def test_cookie_config_diagnostics_logs_runtime_cookie_object(monkeypatch):
     assert any("[COOKIE_OBJECT]" in message for message in logger.messages)
     assert any("env_present=True" in message for message in logger.messages)
     assert any("cookie_keys=['auth_token', 'ct0']" in message or "cookie_keys=['ct0', 'auth_token']" in message for message in logger.messages)
+
+
+def test_validate_cookie_env(monkeypatch):
+    monkeypatch.delenv("X_COOKIES_JSON", raising=False)
+    with pytest.raises(CookieConfigError, match="not set"):
+        validate_cookie_env()
+
+    monkeypatch.setenv("X_COOKIES_JSON", "")
+    with pytest.raises(CookieConfigError, match="defined but empty"):
+        validate_cookie_env()
+
+    monkeypatch.setenv("X_COOKIES_JSON", "{invalid-json}")
+    with pytest.raises(CookieConfigError, match="invalid JSON"):
+        validate_cookie_env()
+
+    monkeypatch.setenv("X_COOKIES_JSON", '{"cookies": []}')
+    with pytest.raises(CookieConfigError, match="empty cookie object"):
+        validate_cookie_env()
+
+    monkeypatch.setenv("X_COOKIES_JSON", '{"auth_token": "token"}')
+    with pytest.raises(CookieConfigError, match="missing required cookies"):
+        validate_cookie_env()
+
+    monkeypatch.setenv(
+        "X_COOKIES_JSON",
+        '{"cookies": [{"name": "auth_token", "value": "token"}, {"name": "ct0", "value": "csrf"}]}',
+    )
+    assert validate_cookie_env() == {"auth_token": "token", "ct0": "csrf"}

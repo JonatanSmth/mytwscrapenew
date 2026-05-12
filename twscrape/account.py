@@ -9,7 +9,7 @@ from httpx import AsyncClient, AsyncHTTPTransport
 
 from .logger import logger
 from .models import JSONTrait
-from .utils import get_env_bool, log_cookie_config_diagnostics, utc
+from .utils import get_env_bool, log_cookie_config_diagnostics, utc, validate_cookie_env
 from .xclid import ClientStateViolationError
 
 
@@ -40,21 +40,17 @@ class XSession:
             cookie_keys = "non-dict"
             cookie_mapping = {}
 
-        logger.info(
-            "[COOKIE_INJECTION_PRE] count=%s keys=%s",
-            len(cookies) if hasattr(cookies, "__len__") else "unknown",
-            cookie_keys,
-        )
+        logger.info(f"[COOKIE_INJECTION_PRE] count={len(cookies) if hasattr(cookies, '__len__') else 'unknown'} keys={cookie_keys}")
 
         if cookie_mapping:
             try:
                 client.cookies.update(cookie_mapping)
             except Exception as err:
-                logger.warning("Cookie update failed: %s", err)
+                logger.warning(f"Cookie update failed: {err}")
 
         jar_count = len(client.cookies.jar)
         jar_names = [c.name for c in client.cookies.jar]
-        logger.info("[HTTPX_COOKIE_JAR] count=%s cookies=%s", jar_count, jar_names)
+        logger.info(f"[HTTPX_COOKIE_JAR] count={jar_count} cookies={jar_names}")
 
         if jar_count == 0 and cookie_mapping:
             logger.info("[COOKIE_INJECTION_FALLBACK] update empty, retrying with set(domain=.x.com, path=/)")
@@ -63,7 +59,7 @@ class XSession:
 
             jar_count = len(client.cookies.jar)
             jar_names = [c.name for c in client.cookies.jar]
-            logger.info("[HTTPX_COOKIE_JAR] fallback count=%s cookies=%s", jar_count, jar_names)
+            logger.info(f"[HTTPX_COOKIE_JAR] fallback count={jar_count} cookies={jar_names}")
 
         if cookie_mapping and jar_count == 0:
             raise CookieInjectionFailure(
@@ -132,6 +128,13 @@ class Account(JSONTrait):
         return rs
 
     def make_client(self, proxy: str | None = None) -> AsyncClient:
+        if os.getenv("X_COOKIES_JSON") is not None:
+            try:
+                validate_cookie_env()
+            except CookieConfigError as err:
+                logger.error(f"X_COOKIES_JSON validation failed: {err}")
+                raise
+
         log_cookie_config_diagnostics(logger)
 
         proxies = [proxy, os.getenv("TWS_PROXY"), self.proxy]
@@ -183,17 +186,10 @@ class Account(JSONTrait):
 
         if get_env_bool("XCLIENT_DEBUG"):
             logger.info(
-                "[XCLIENT_STATE] account=%s client_type=account cookie_count=%s cookies=%s "
-                "ct0=%s auth_token=%s fingerprint=%s ua=%s proxy=%s request_url=%s",
-                self.username,
-                len(self.cookies),
-                sorted(self.cookies.keys()),
-                'ct0' in self.cookies,
-                'auth_token' in self.cookies,
-                bool(client.headers.get("x-twitter-client-language")),
-                client.headers.get("user-agent", ""),
-                proxy or "none",
-                "<not requested yet>",
+                f"[XCLIENT_STATE] account={self.username} client_type=account cookie_count={len(self.cookies)} "
+                f"cookies={sorted(self.cookies.keys())} ct0={'ct0' in self.cookies} auth_token={'auth_token' in self.cookies} "
+                f"fingerprint={bool(client.headers.get('x-twitter-client-language'))} ua={client.headers.get('user-agent', '')} "
+                f"proxy={proxy or 'none'} request_url=<not requested yet>"
             )
 
         return client

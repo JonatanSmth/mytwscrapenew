@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import io
 import json
+import os
 import sqlite3
 from importlib.metadata import version
 
@@ -14,7 +15,7 @@ from .db import get_sqlite_version
 from .logger import logger, set_log_level
 from .login import LoginConfig
 from .models import Tweet, User
-from .utils import print_table
+from .utils import CookieConfigError, print_table, validate_cookie_env
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
@@ -43,6 +44,23 @@ def to_str(doc: httpx.Response | Tweet | User | None) -> str:
 async def main(args):
     if args.debug:
         set_log_level("DEBUG")
+
+    print("=== ENV CHECK ===")
+    env_exists = os.getenv("X_COOKIES_JSON") is not None
+    print("X_COOKIES_JSON exists:", env_exists)
+
+    raw = os.getenv("X_COOKIES_JSON")
+    if raw:
+        print("X_COOKIES_JSON length:", len(raw))
+        print("X_COOKIES_JSON preview:", raw[:120])
+        print("X_COOKIES_JSON repr preview:", repr(raw)[:300])
+
+    if env_exists:
+        try:
+            validate_cookie_env()
+            print("ENV FILE LOADED SUCCESSFULLY")
+        except CookieConfigError as err:
+            print("ENV FILE VALIDATION FAILED:", err)
 
     if args.command == "version":
         print(f"twscrape: {version('twscrape')}")

@@ -12,7 +12,7 @@ from .account import Account
 from .db import execute, fetchall, fetchone
 from .logger import logger
 from .login import LoginConfig, login
-from .utils import CookieConfigError, get_env_bool, log_cookie_config_diagnostics, parse_cookies, utc
+from .utils import CookieConfigError, get_env_bool, log_cookie_config_diagnostics, parse_cookies, utc, validate_cookie_env
 
 
 class NoAccountError(Exception):
@@ -44,6 +44,12 @@ class AccountsPool:
         raise_when_no_account=False,
     ):
         log_cookie_config_diagnostics(logger)
+        if os.getenv("X_COOKIES_JSON") is not None:
+            try:
+                validate_cookie_env()
+            except CookieConfigError as err:
+                logger.error(f"X_COOKIES_JSON validation failed: {err}")
+                raise
         self._db_file = db_file
         self._login_config = login_config or LoginConfig()
         self._raise_when_no_account = raise_when_no_account
