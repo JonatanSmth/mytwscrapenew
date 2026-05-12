@@ -9,11 +9,10 @@ from httpx import AsyncClient, AsyncHTTPTransport
 
 from .logger import logger
 from .models import JSONTrait
-from .utils import _normalize_cookie_payload, get_env_bool, log_cookie_config_diagnostics, utc, validate_cookie_env
+from .utils import _normalize_cookie_payload, get_env_bool, log_cookie_config_diagnostics, parse_raw_cookie_string, utc, validate_cookie_env
 from .xclid import ClientStateViolationError
 
 
-@dataclass
 @dataclass
 class XSession:
     cookies: dict[str, str] | list[dict[str, str]]
@@ -120,6 +119,17 @@ class Account(JSONTrait):
                 raise
 
         log_cookie_config_diagnostics(logger)
+
+        if not self.cookies and os.getenv("X_COOKIES") is not None:
+            try:
+                parsed_cookies = parse_raw_cookie_string(os.getenv("X_COOKIES"))
+                if parsed_cookies:
+                    self.cookies = parsed_cookies
+                    logger.info(
+                        f"[COOKIE_ENV_FALLBACK] loaded {len(parsed_cookies)} cookies from X_COOKIES env"
+                    )
+            except Exception as err:
+                logger.warning(f"[COOKIE_ENV_FALLBACK] failed to parse X_COOKIES: {err}")
 
         proxies = [proxy, os.getenv("TWS_PROXY"), self.proxy]
         proxies = [x for x in proxies if x is not None]

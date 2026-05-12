@@ -119,6 +119,38 @@ def test_make_client_raises_when_cookie_injection_fails():
         XSession.apply_to_client = original_apply
 
 
+def test_make_client_loads_raw_env_cookies_when_account_has_none(monkeypatch):
+    monkeypatch.setenv(
+        "X_COOKIES",
+        "auth_token=token123; ct0=csrf456; twid=u%3D1111111111111111111",
+    )
+
+    account = Account(
+        username="user",
+        password="pass",
+        email="user@example.com",
+        email_password="email_pass",
+        user_agent="test-agent",
+        active=True,
+        locks={},
+        stats={},
+        headers={},
+        cookies={},
+        mfa_code=None,
+        proxy=None,
+        error_msg=None,
+        last_used=None,
+        _tx=None,
+    )
+
+    client = account.make_client()
+
+    assert client.cookies["auth_token"] == "token123"
+    assert client.cookies["ct0"] == "csrf456"
+    assert client.cookies["twid"] == "u%3D1111111111111111111"
+    assert client.headers["x-csrf-token"] == "csrf456"
+
+
 def test_make_client_returns_cached_client_and_detects_recreation():
     account = Account(
         username="user",

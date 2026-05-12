@@ -44,11 +44,11 @@ class AccountsPool:
         raise_when_no_account=False,
     ):
         log_cookie_config_diagnostics(logger)
-        if os.getenv("X_COOKIES_JSON") is not None:
+        if os.getenv("X_COOKIES_JSON") is not None or os.getenv("X_COOKIES") is not None:
             try:
                 validate_cookie_env()
             except CookieConfigError as err:
-                logger.error(f"X_COOKIES_JSON validation failed: {err}")
+                logger.error(f"Cookie env validation failed: {err}")
                 raise
         self._db_file = db_file
         self._login_config = login_config or LoginConfig()
