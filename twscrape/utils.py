@@ -219,6 +219,13 @@ def log_cookie_config_diagnostics(logger):
             raise CookieConfigError(err)
         if isinstance(payload, dict) and "cookies" in payload:
             payload = payload["cookies"]
+
+        logger.info(
+            "[COOKIE_OBJECT] type=%s preview=%s",
+            type(payload).__name__,
+            repr(payload)[:300],
+        )
+
         parsed_cookies = _normalize_cookie_payload(payload)
     else:
         raw_cookies = os.getenv("X_COOKIES")

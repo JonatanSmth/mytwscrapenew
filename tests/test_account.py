@@ -1,7 +1,15 @@
 import pytest
 
-from twscrape.account import Account, ClientCookieInjectionError, XSession
+import httpx
+
+from twscrape.account import Account, ClientCookieInjectionError, CookieInjectionFailure, XSession
 from twscrape.xclid import ClientStateViolationError
+
+
+class DummyClient:
+    def __init__(self):
+        self.cookies = httpx.Cookies()
+        self.headers = {}
 
 
 def test_make_client_sets_browser_cookies_and_csrf():
@@ -30,6 +38,56 @@ def test_make_client_sets_browser_cookies_and_csrf():
     assert client.cookies["twid"] == "twid"
     assert client.headers["x-csrf-token"] == "csrf"
     assert client.headers["user-agent"] == "test-agent"
+
+
+def test_xsession_injects_dict_cookies_into_httpx_jar():
+    client = DummyClient()
+    XSession(
+        cookies={"auth_token": "token", "ct0": "csrf"},
+        headers={},
+    ).apply_to_client(client)
+
+    assert len(client.cookies.jar) == 2
+    assert {c.name for c in client.cookies.jar} == {"auth_token", "ct0"}
+
+
+def test_xsession_injects_list_cookie_structure_into_httpx_jar():
+    client = DummyClient()
+    XSession(
+        cookies=[
+            {"name": "auth_token", "value": "token"},
+            {"name": "ct0", "value": "csrf"},
+        ],
+        headers={},
+    ).apply_to_client(client)
+
+    assert len(client.cookies.jar) == 2
+    assert {c.name for c in client.cookies.jar} == {"auth_token", "ct0"}
+
+
+def test_xsession_fallback_set_injection_when_update_empty():
+    client = DummyClient()
+    client.cookies.update = lambda *args, **kwargs: None
+
+    XSession(
+        cookies={"auth_token": "token", "ct0": "csrf"},
+        headers={},
+    ).apply_to_client(client)
+
+    assert len(client.cookies.jar) == 2
+    assert {c.name for c in client.cookies.jar} == {"auth_token", "ct0"}
+
+
+def test_xsession_raises_cookie_injection_failure_when_jar_remains_empty_after_fallback():
+    client = DummyClient()
+    client.cookies.update = lambda *args, **kwargs: None
+    client.cookies.set = lambda *args, **kwargs: None
+
+    with pytest.raises(CookieInjectionFailure):
+        XSession(
+            cookies={"auth_token": "token", "ct0": "csrf"},
+            headers={},
+        ).apply_to_client(client)
 
 
 def test_make_client_raises_when_cookie_injection_fails():

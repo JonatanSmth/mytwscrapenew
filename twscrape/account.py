@@ -15,14 +15,61 @@ from .xclid import ClientStateViolationError
 
 @dataclass
 class XSession:
-    cookies: dict[str, str]
+    cookies: dict[str, str] | list[dict[str, str]]
     headers: dict[str, str]
     proxy: str | None = None
     last_validated: int | None = None
 
     def apply_to_client(self, client: AsyncClient):
-        for name, value in self.cookies.items():
-            client.cookies.set(name, value)
+        cookies = self.cookies
+        if not cookies:
+            client.headers.update(self.headers)
+            return
+
+        if isinstance(cookies, dict):
+            cookie_keys = list(cookies.keys())
+            cookie_mapping = {str(k): str(v) for k, v in cookies.items()}
+        elif isinstance(cookies, list):
+            cookie_keys = [str(item.get("name")) for item in cookies if isinstance(item, dict) and "name" in item]
+            cookie_mapping = {
+                str(item["name"]): str(item["value"])
+                for item in cookies
+                if isinstance(item, dict) and "name" in item and "value" in item
+            }
+        else:
+            cookie_keys = "non-dict"
+            cookie_mapping = {}
+
+        logger.info(
+            "[COOKIE_INJECTION_PRE] count=%s keys=%s",
+            len(cookies) if hasattr(cookies, "__len__") else "unknown",
+            cookie_keys,
+        )
+
+        if cookie_mapping:
+            try:
+                client.cookies.update(cookie_mapping)
+            except Exception as err:
+                logger.warning("Cookie update failed: %s", err)
+
+        jar_count = len(client.cookies.jar)
+        jar_names = [c.name for c in client.cookies.jar]
+        logger.info("[HTTPX_COOKIE_JAR] count=%s cookies=%s", jar_count, jar_names)
+
+        if jar_count == 0 and cookie_mapping:
+            logger.info("[COOKIE_INJECTION_FALLBACK] update empty, retrying with set(domain=.x.com, path=/)")
+            for name, value in cookie_mapping.items():
+                client.cookies.set(name, value, domain=".x.com", path="/")
+
+            jar_count = len(client.cookies.jar)
+            jar_names = [c.name for c in client.cookies.jar]
+            logger.info("[HTTPX_COOKIE_JAR] fallback count=%s cookies=%s", jar_count, jar_names)
+
+        if cookie_mapping and jar_count == 0:
+            raise CookieInjectionFailure(
+                f"Account HTTPX cookie jar is empty after injection; cookie keys={cookie_keys}"
+            )
+
         client.headers.update(self.headers)
 
         if "ct0" in client.cookies:
@@ -34,6 +81,10 @@ TOKEN = "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Z
 
 
 class ClientCookieInjectionError(Exception):
+    pass
+
+
+class CookieInjectionFailure(ClientCookieInjectionError):
     pass
 
 
